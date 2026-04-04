@@ -21,4 +21,3 @@ chmod +x run.sh
 ```
 
 This compiles all Java sources into `out/` and launches `game.GameRunner`.
-
