@@ -1,2 +1,2 @@
-Settlers of Catan
+catanthropic
 ================
