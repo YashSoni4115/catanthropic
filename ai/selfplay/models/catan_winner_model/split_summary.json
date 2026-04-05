@@ -1,0 +1,26 @@
+{
+  "train": {
+    "rows": 54593,
+    "games": 427,
+    "class_balance": {
+      "0": 40943,
+      "1": 13650
+    }
+  },
+  "val": {
+    "rows": 6400,
+    "games": 50,
+    "class_balance": {
+      "0": 4800,
+      "1": 1600
+    }
+  },
+  "test": {
+    "rows": 6912,
+    "games": 54,
+    "class_balance": {
+      "0": 5184,
+      "1": 1728
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "balance_classes": true,
+  "dedupe_position_id": false,
+  "drop_consecutive_duplicates": true,
+  "input": "/Users/yash/Desktop/catanthropic/ai/selfplay/data/selfplay_1000games_v4.jsonl",
+  "input_format": "selfplay_raw",
+  "max_rows_per_game": 128,
+  "models": [
+    "hgb",
+    "logreg"
+  ],
+  "output_dir": "/Users/yash/Desktop/catanthropic/ai/selfplay/models/win_model_v1",
+  "seed": 42,
+  "split_ratios": [
+    80,
+    10,
+    10
+  ],
+  "split_seed": "win_model_v1",
+  "winner_only": true
+}

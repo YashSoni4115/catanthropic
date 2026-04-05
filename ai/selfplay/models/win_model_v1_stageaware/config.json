@@ -1,0 +1,29 @@
+{
+  "balance_classes": true,
+  "dedupe_position_id": false,
+  "drop_consecutive_duplicates": true,
+  "input": "/Users/yash/Desktop/catanthropic/ai/selfplay/data/selfplay_1000games_v4.jsonl",
+  "input_format": "selfplay_raw",
+  "max_rows_per_game": 64,
+  "models": [
+    "hgb",
+    "logreg"
+  ],
+  "output_dir": "/Users/yash/Desktop/catanthropic/ai/selfplay/models/win_model_v1_stageaware",
+  "perm_importance_repeats": 3,
+  "perm_importance_sample_size": 2000,
+  "seed": 42,
+  "skip_feature_importance": true,
+  "split_ratios": [
+    80,
+    10,
+    10
+  ],
+  "split_seed": "win_model_v1",
+  "stage_weights": {
+    "early": 0.5,
+    "late": 0.2,
+    "mid": 0.3
+  },
+  "winner_only": true
+}

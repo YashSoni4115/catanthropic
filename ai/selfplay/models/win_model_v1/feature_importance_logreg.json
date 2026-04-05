@@ -1,0 +1,149 @@
+{
+  "model": "logreg",
+  "top_features": [
+    {
+      "feature_index": 22,
+      "feature_name": "feature_22",
+      "importance": 0.5156102776527405,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 21,
+      "feature_name": "feature_21",
+      "importance": 0.4743782579898834,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 8,
+      "feature_name": "feature_8",
+      "importance": 0.40678924322128296,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 15,
+      "feature_name": "feature_15",
+      "importance": 0.17812511324882507,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 17,
+      "feature_name": "feature_17",
+      "importance": 0.14610660076141357,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 13,
+      "feature_name": "feature_13",
+      "importance": 0.1152375265955925,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 23,
+      "feature_name": "feature_23",
+      "importance": 0.10869226604700089,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 11,
+      "feature_name": "feature_11",
+      "importance": 0.10553333163261414,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 19,
+      "feature_name": "feature_19",
+      "importance": 0.09765888750553131,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 9,
+      "feature_name": "feature_9",
+      "importance": 0.09216582775115967,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 16,
+      "feature_name": "feature_16",
+      "importance": 0.07806804031133652,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 10,
+      "feature_name": "feature_10",
+      "importance": 0.06145225092768669,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 0,
+      "feature_name": "feature_0",
+      "importance": 0.054674722254276276,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 14,
+      "feature_name": "feature_14",
+      "importance": 0.027287272736430168,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 18,
+      "feature_name": "feature_18",
+      "importance": 0.0215251836925745,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 20,
+      "feature_name": "feature_20",
+      "importance": 0.015581157989799976,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 7,
+      "feature_name": "feature_7",
+      "importance": 0.014842908829450607,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 12,
+      "feature_name": "feature_12",
+      "importance": 0.0107577471062541,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 6,
+      "feature_name": "feature_6",
+      "importance": 0.0,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 5,
+      "feature_name": "feature_5",
+      "importance": 0.0,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 4,
+      "feature_name": "feature_4",
+      "importance": 0.0,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 3,
+      "feature_name": "feature_3",
+      "importance": 0.0,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 2,
+      "feature_name": "feature_2",
+      "importance": 0.0,
+      "source": "abs_coef"
+    },
+    {
+      "feature_index": 1,
+      "feature_name": "feature_1",
+      "importance": 0.0,
+      "source": "abs_coef"
+    }
+  ]
+}

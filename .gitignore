@@ -9,3 +9,10 @@ out/
 .vscode/
 .idea/
 *.iml
+
+data/
+
+ai/selfplay/data/
+
+ai/tests/
+

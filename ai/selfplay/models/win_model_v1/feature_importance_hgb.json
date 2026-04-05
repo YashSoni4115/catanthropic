@@ -1,0 +1,149 @@
+{
+  "model": "hgb",
+  "top_features": [
+    {
+      "feature_index": 22,
+      "feature_name": "feature_22",
+      "importance": 0.16913855351011617,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 0,
+      "feature_name": "feature_0",
+      "importance": 0.04344860088529963,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 8,
+      "feature_name": "feature_8",
+      "importance": 0.02228783605900183,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 13,
+      "feature_name": "feature_13",
+      "importance": 0.01986460539955648,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 11,
+      "feature_name": "feature_11",
+      "importance": 0.015265469435657163,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 14,
+      "feature_name": "feature_14",
+      "importance": 0.014006091739704385,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 12,
+      "feature_name": "feature_12",
+      "importance": 0.013318380786858274,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 10,
+      "feature_name": "feature_10",
+      "importance": 0.009899072084431259,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 20,
+      "feature_name": "feature_20",
+      "importance": 0.0029628497813763755,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 15,
+      "feature_name": "feature_15",
+      "importance": 0.0018685938690623737,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 16,
+      "feature_name": "feature_16",
+      "importance": 0.0017313767275604851,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 9,
+      "feature_name": "feature_9",
+      "importance": 0.0015870708919899167,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 23,
+      "feature_name": "feature_23",
+      "importance": 0.000832825293179551,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 7,
+      "feature_name": "feature_7",
+      "importance": 0.00042287129279378055,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 6,
+      "feature_name": "feature_6",
+      "importance": 0.0,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 5,
+      "feature_name": "feature_5",
+      "importance": 0.0,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 4,
+      "feature_name": "feature_4",
+      "importance": 0.0,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 3,
+      "feature_name": "feature_3",
+      "importance": 0.0,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 2,
+      "feature_name": "feature_2",
+      "importance": 0.0,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 1,
+      "feature_name": "feature_1",
+      "importance": 0.0,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 18,
+      "feature_name": "feature_18",
+      "importance": -0.0010346531892088562,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 19,
+      "feature_name": "feature_19",
+      "importance": -0.0010517293755004098,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 17,
+      "feature_name": "feature_17",
+      "importance": -0.0030334494205942254,
+      "source": "permutation_neg_log_loss"
+    },
+    {
+      "feature_index": 21,
+      "feature_name": "feature_21",
+      "importance": -0.008080119616613635,
+      "source": "permutation_neg_log_loss"
+    }
+  ]
+}

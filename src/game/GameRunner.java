@@ -40,16 +40,32 @@ public class GameRunner {
 	}
 	
 	public static void nextPlayer() {
-		currentPlayer = players.get((index + 1) % 4);
-		index = (index + 1) % 4;
+		if (players == null || players.isEmpty()) {
+			currentPlayer = null;
+			index = 0;
+			return;
+		}
+		index = (index + 1) % players.size();
+		currentPlayer = players.get(index);
 	}
 	
 	public static void prevPlayer() {
-		currentPlayer = players.get((index - 1) % 4);
-		index = (index - 1) % 4;
+		if (players == null || players.isEmpty()) {
+			currentPlayer = null;
+			index = 0;
+			return;
+		}
+		index = (index - 1 + players.size()) % players.size();
+		currentPlayer = players.get(index);
 	}
 	
 	public static void setFirstPlayer() {
+		if (players == null || players.isEmpty()) {
+			currentPlayer = null;
+			index = 0;
+			return;
+		}
+		index = 0;
 		currentPlayer = players.get(0);
 	}
 	

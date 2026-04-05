@@ -1,0 +1,136 @@
+{
+  "best_model": "hgb",
+  "feature_importance_paths": {
+    "hgb": "/Users/yash/Desktop/catanthropic/ai/selfplay/models/win_model_v1/feature_importance_hgb.json",
+    "logreg": "/Users/yash/Desktop/catanthropic/ai/selfplay/models/win_model_v1/feature_importance_logreg.json"
+  },
+  "metrics": {
+    "baseline_prior": {
+      "test": {
+        "accuracy": 0.750272736288803,
+        "brier": 0.18736781103789882,
+        "f1": 0.0,
+        "log_loss": 0.5620466244829561,
+        "n": 10083,
+        "positive_rate": 0.24972726371119705,
+        "pr_auc": 0.24972726371119705,
+        "precision": 0.0,
+        "pred_positive_rate": 0.0,
+        "recall": 0.0,
+        "roc_auc": 0.5
+      },
+      "train": {
+        "accuracy": 0.7482103184398914,
+        "brier": 0.18839163781996773,
+        "f1": 0.0,
+        "log_loss": 0.5642927830777623,
+        "n": 72918,
+        "positive_rate": 0.2517896815601086,
+        "pr_auc": 0.2517896815601086,
+        "precision": 0.0,
+        "pred_positive_rate": 0.0,
+        "recall": 0.0,
+        "roc_auc": 0.5
+      },
+      "val": {
+        "accuracy": 0.7466450717260528,
+        "brier": 0.18916865859052545,
+        "f1": 0.0,
+        "log_loss": 0.5659974775755995,
+        "n": 8644,
+        "positive_rate": 0.25335492827394723,
+        "pr_auc": 0.25335492827394723,
+        "precision": 0.0,
+        "pred_positive_rate": 0.0,
+        "recall": 0.0,
+        "roc_auc": 0.5
+      }
+    },
+    "hgb": {
+      "test": {
+        "accuracy": 0.7902409997024695,
+        "brier": 0.13935123280941003,
+        "f1": 0.6623024109851509,
+        "log_loss": 0.4278435614398775,
+        "n": 10083,
+        "positive_rate": 0.24972726371119705,
+        "pr_auc": 0.7407266672548032,
+        "precision": 0.5538050734312416,
+        "pred_positive_rate": 0.37141723693345235,
+        "recall": 0.8236695790309769,
+        "roc_auc": 0.8834242495670299
+      },
+      "train": {
+        "accuracy": 0.8002413670150031,
+        "brier": 0.13209571536545894,
+        "f1": 0.6829204580086203,
+        "log_loss": 0.40402532796522245,
+        "n": 72918,
+        "positive_rate": 0.2517896815601086,
+        "pr_auc": 0.7599280544632511,
+        "precision": 0.5687867140474291,
+        "pred_positive_rate": 0.3782056556680106,
+        "recall": 0.8543572984749456,
+        "roc_auc": 0.9027003157919284
+      },
+      "val": {
+        "accuracy": 0.7742943081906525,
+        "brier": 0.14977798256704308,
+        "f1": 0.6410303587856486,
+        "log_loss": 0.4517296758329326,
+        "n": 8644,
+        "positive_rate": 0.25335492827394723,
+        "pr_auc": 0.6808930160474704,
+        "precision": 0.5368258859784284,
+        "pred_positive_rate": 0.37540490513651087,
+        "recall": 0.7954337899543379,
+        "roc_auc": 0.8657611364160557
+      }
+    },
+    "logreg": {
+      "test": {
+        "accuracy": 0.7515620351085986,
+        "brier": 0.1724456532746639,
+        "f1": 0.5775004216562658,
+        "log_loss": 0.5246509696355153,
+        "n": 10083,
+        "positive_rate": 0.24972726371119705,
+        "pr_auc": 0.6491704947886228,
+        "precision": 0.5019055995309294,
+        "pred_positive_rate": 0.3382921749479322,
+        "recall": 0.6799046862589356,
+        "roc_auc": 0.8221999226192696
+      },
+      "train": {
+        "accuracy": 0.736608244877808,
+        "brier": 0.18291295958900491,
+        "f1": 0.5556223970384081,
+        "log_loss": 0.5545347212247438,
+        "n": 72918,
+        "positive_rate": 0.2517896815601086,
+        "pr_auc": 0.5739357768206914,
+        "precision": 0.4829847144006436,
+        "pred_positive_rate": 0.34093090869195536,
+        "recall": 0.6539760348583878,
+        "roc_auc": 0.795960969282076
+      },
+      "val": {
+        "accuracy": 0.7364645997223508,
+        "brier": 0.18071511964020165,
+        "f1": 0.5569817191754182,
+        "log_loss": 0.5438095148981447,
+        "n": 8644,
+        "positive_rate": 0.25335492827394723,
+        "pr_auc": 0.58556391202636,
+        "precision": 0.48509485094850946,
+        "pred_positive_rate": 0.34150856085145764,
+        "recall": 0.6538812785388128,
+        "roc_auc": 0.8009231116450384
+      }
+    }
+  },
+  "model_paths": {
+    "hgb": "/Users/yash/Desktop/catanthropic/ai/selfplay/models/win_model_v1/model_hgb.pkl",
+    "logreg": "/Users/yash/Desktop/catanthropic/ai/selfplay/models/win_model_v1/model_logreg.pkl"
+  }
+}

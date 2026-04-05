@@ -238,15 +238,15 @@ public class Player {
 			grain = 0;
 
 		for (String s : res) {
-			if (res.equals("WOOL"))
+			if (s.equals("WOOL"))
 				wool++;
-			else if (res.equals("ORE"))
+			else if (s.equals("ORE"))
 				ore++;
-			else if (res.equals("LUMBER"))
+			else if (s.equals("LUMBER"))
 				lumber++;
-			else if (res.equals("BRICK"))
+			else if (s.equals("BRICK"))
 				brick++;
-			else if (res.equals("GRAIN"))
+			else if (s.equals("GRAIN"))
 				grain++;
 		}
 

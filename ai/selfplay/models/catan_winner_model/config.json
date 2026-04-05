@@ -1,0 +1,11 @@
+{
+  "data_path": "selfplay_guided_1000games_v2.jsonl",
+  "max_rows_per_game": 128,
+  "split_seed": "guided_turn_winner_v1",
+  "stage_weights": {
+    "early": 0.5,
+    "mid": 0.3,
+    "late": 0.2
+  },
+  "selected_model": "hgb"
+}
