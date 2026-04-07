@@ -8,6 +8,7 @@
 - `trajectory_dataset_builder_v1.py`: trajectory-aware builder with per-game row indexing.
 - `split_manifest_v1.py`: generates deterministic game-level split manifests.
 - `train_win_model_v1.py`: trains first baseline winner predictor (`P(current player eventually wins)`).
+- `resource_belief_tracker_v1.py`: exact-enumeration hidden resource belief tracker for opponents.
 
 ## Recommended Corpus Workflow
 
@@ -96,3 +97,26 @@ Artifacts:
 - `metrics.json`
 - `model_*.pkl`
 - `feature_importance_*.json`
+
+## Resource Belief Tracker V1
+
+`resource_belief_tracker_v1.py` provides a narrow, debuggable module for hidden resource inference.
+
+Supported event updates:
+- `known_resource_gain`
+- `known_spend` (`road`, `settlement`, `city`, `dev_card` or explicit spend vector)
+- `random_steal`
+- `public_total_reconcile`
+
+Quick usage:
+
+```zsh
+/Users/yash/Desktop/catanthropic/.venv/bin/python - <<'PY'
+from ai.resource_belief_tracker_v1 import ResourceBeliefTrackerV1
+
+tracker = ResourceBeliefTrackerV1(strict=True)
+tracker.initialize_player("P1", observed_total_cards=3)
+tracker.apply_event({"type": "known_resource_gain", "player_id": "P1", "resource": "WOOL", "amount": 1})
+print(tracker.get_player_summary("P1"))
+PY
+```
