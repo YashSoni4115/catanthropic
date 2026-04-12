@@ -53,11 +53,6 @@ def _extract_turn_metadata(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _extract_row_index_in_game(payload: Dict[str, Any], fallback_index: int) -> int:
-    turn_meta = _extract_turn_metadata(payload)
-    turn_index = turn_meta.get("turn_index")
-    if isinstance(turn_index, int):
-        return turn_index
-
     explicit = _first_non_null(
         payload,
         [
@@ -68,6 +63,11 @@ def _extract_row_index_in_game(payload: Dict[str, Any], fallback_index: int) -> 
     )
     if isinstance(explicit, int):
         return explicit
+
+    turn_meta = _extract_turn_metadata(payload)
+    turn_index = turn_meta.get("turn_index")
+    if isinstance(turn_index, int):
+        return turn_index
     return fallback_index
 
 
@@ -262,6 +262,7 @@ def iter_rows(
     label_win: Optional[int] = None,
     allow_global_label_fallback: bool = False,
     adjacency_features_enabled: bool = True,
+    economy_features_enabled: bool = False,
     split_by_game: bool = True,
     split_seed: str = "dataset_builder_v1",
     split_ratios: Tuple[int, int, int] = (80, 10, 10),
@@ -271,7 +272,10 @@ def iter_rows(
     drop_unlabeled: bool = True,
     skip_malformed: bool = True,
 ) -> Iterator[Dict[str, Any]]:
-    vectorizer = StateVectorizerV1(adjacency_features_enabled=adjacency_features_enabled)
+    vectorizer = StateVectorizerV1(
+        adjacency_features_enabled=adjacency_features_enabled,
+        economy_features_enabled=economy_features_enabled,
+    )
     seen_positions: Set[str] = set()
     expected_schema_hash: Optional[str] = None
     expected_vector_length: Optional[int] = None
@@ -313,6 +317,7 @@ def iter_rows(
         )
 
         row["adjacency_features_enabled"] = adjacency_features_enabled
+        row["economy_features_enabled"] = economy_features_enabled
         row["vector_length"] = len(vectorized.x)
         if not row.get("feature_schema_hash"):
             row["feature_schema_hash"] = vectorized.metadata.get("feature_schema_hash")
@@ -351,6 +356,7 @@ def build_rows(
     label_win: Optional[int] = None,
     allow_global_label_fallback: bool = False,
     adjacency_features_enabled: bool = True,
+    economy_features_enabled: bool = False,
     split_by_game: bool = True,
     split_seed: str = "dataset_builder_v1",
     split_ratios: Tuple[int, int, int] = (80, 10, 10),
@@ -368,6 +374,7 @@ def build_rows(
             label_win=label_win,
             allow_global_label_fallback=allow_global_label_fallback,
             adjacency_features_enabled=adjacency_features_enabled,
+            economy_features_enabled=economy_features_enabled,
             split_by_game=split_by_game,
             split_seed=split_seed,
             split_ratios=split_ratios,
@@ -413,6 +420,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--disable-adjacency-features",
         action="store_true",
         help="Disable adjacency-derived engineered production features",
+    )
+    parser.add_argument(
+        "--enable-economy-features",
+        action="store_true",
+        help="Append flattened economy subsystem features to the vector output",
     )
     parser.add_argument(
         "--disable-split-by-game",
@@ -475,6 +487,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         label_win=args.label_win,
         allow_global_label_fallback=args.allow_global_label_fallback,
         adjacency_features_enabled=not args.disable_adjacency_features,
+        economy_features_enabled=args.enable_economy_features,
         split_by_game=not args.disable_split_by_game,
         split_seed=args.split_seed,
         split_ratios=split_ratios,

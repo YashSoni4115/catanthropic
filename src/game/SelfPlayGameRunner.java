@@ -91,6 +91,14 @@ public class SelfPlayGameRunner {
         ArrayList<String> successfulActions = new ArrayList<String>();
     }
 
+    private static final class SnapshotCursor {
+        private int rowIndex = 0;
+
+        int next() {
+            return rowIndex++;
+        }
+    }
+
     public static void main(String[] args) {
         Config config = parseArgs(args);
         String gameId = UUID.randomUUID().toString();
@@ -98,6 +106,7 @@ public class SelfPlayGameRunner {
         ArrayList<Player> players = makePlayers();
         Game game = new Game(players);
         List<String> trajectory = new ArrayList<>();
+        SnapshotCursor snapshotCursor = new SnapshotCursor();
         int turnIndex = 0;
         int consecutivePassTurns = 0;
         int noProgressTurns = 0;
@@ -113,7 +122,26 @@ public class SelfPlayGameRunner {
                 scorer = new GuidedModelScorer(config);
             }
 
-            runInitialPlacements(game, players, rng);
+            Player setupStarter = players.get(0);
+            trajectory.add(
+                snapshotJsonLine(
+                    game,
+                    players,
+                    gameId,
+                    snapshotCursor.next(),
+                    -1,
+                    0,
+                    setupStarter.getName(),
+                    "setup_pre_initial_placements",
+                    Collections.<String>emptyList(),
+                    null,
+                    "setup",
+                    "setup_pre_initial_placements",
+                    0
+                )
+            );
+
+            runInitialPlacements(game, players, rng, trajectory, gameId, snapshotCursor);
             assertAllResourcesNonNegative(players, "post_initial_placement");
 
             while (!game.over() && turnIndex < config.maxTurns) {
@@ -155,7 +183,23 @@ public class SelfPlayGameRunner {
                 ArrayList<String> actions = trace.successfulActions;
 
                 String actionLabel = actions.isEmpty() ? "pass" : String.join("+", actions);
-                trajectory.add(snapshotJsonLine(game, players, gameId, turnIndex, currentPlayerId, current.getName(), actionLabel, actions, roll));
+                trajectory.add(
+                    snapshotJsonLine(
+                        game,
+                        players,
+                        gameId,
+                        snapshotCursor.next(),
+                        turnIndex,
+                        currentPlayerId,
+                        current.getName(),
+                        actionLabel,
+                        actions,
+                        Integer.valueOf(roll),
+                        "main",
+                        actionLabel,
+                        -1
+                    )
+                );
 
                 assertAllResourcesNonNegative(players, "post_turn:" + turnIndex);
 
@@ -280,12 +324,55 @@ public class SelfPlayGameRunner {
         return players;
     }
 
-    private static void runInitialPlacements(Game game, ArrayList<Player> players, Random rng) {
+    private static void runInitialPlacements(
+        Game game,
+        ArrayList<Player> players,
+        Random rng,
+        List<String> trajectory,
+        String gameId,
+        SnapshotCursor snapshotCursor
+    ) {
+        int setupStepIndex = 1;
         for (Player player : players) {
             placeRandomInitialSettlementAndRoad(game, player, rng);
+            trajectory.add(
+                snapshotJsonLine(
+                    game,
+                    players,
+                    gameId,
+                    snapshotCursor.next(),
+                    -1,
+                    players.indexOf(player),
+                    player.getName(),
+                    "setup_initial_placement",
+                    Arrays.asList("place_initial_settlement", "place_initial_road"),
+                    null,
+                    "setup",
+                    "post_initial_placement",
+                    setupStepIndex++
+                )
+            );
         }
         for (int i = players.size() - 1; i >= 0; i--) {
-            placeRandomInitialSettlementAndRoad(game, players.get(i), rng);
+            Player player = players.get(i);
+            placeRandomInitialSettlementAndRoad(game, player, rng);
+            trajectory.add(
+                snapshotJsonLine(
+                    game,
+                    players,
+                    gameId,
+                    snapshotCursor.next(),
+                    -1,
+                    i,
+                    player.getName(),
+                    "setup_initial_placement",
+                    Arrays.asList("place_initial_settlement", "place_initial_road"),
+                    null,
+                    "setup",
+                    "post_initial_placement",
+                    setupStepIndex++
+                )
+            );
         }
     }
 
@@ -1134,12 +1221,16 @@ public class SelfPlayGameRunner {
         Game game,
         ArrayList<Player> players,
         String gameId,
+        int rowIndexInGame,
         int turnIndex,
         int currentPlayerId,
         String currentPlayerName,
         String actionTaken,
         List<String> recentActions,
-        int roll
+        Integer roll,
+        String phase,
+        String snapshotLabel,
+        int setupStepIndex
     ) {
         Board board = game.getBoard();
         Location robberLoc = board.getRobberLocation();
@@ -1147,16 +1238,25 @@ public class SelfPlayGameRunner {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         sb.append("\"game_id\":\"").append(escape(gameId)).append("\",");
-        sb.append("\"position_id\":\"").append(escape(gameId)).append("_").append(turnIndex).append("\",");
-        sb.append("\"row_index_in_game\":").append(turnIndex).append(",");
+        sb.append("\"position_id\":\"").append(escape(gameId)).append("_").append(escape(phase)).append("_").append(rowIndexInGame).append("\",");
+        sb.append("\"row_index_in_game\":").append(rowIndexInGame).append(",");
         sb.append("\"turn_metadata\":{");
         sb.append("\"turn_index\":").append(turnIndex).append(",");
         sb.append("\"current_player_id\":\"").append(currentPlayerId).append("\",");
         sb.append("\"current_player_name\":\"").append(escape(currentPlayerName)).append("\",");
-        sb.append("\"current_phase\":\"main\"");
+        sb.append("\"current_phase\":\"").append(escape(phase)).append("\"");
         sb.append("},");
         sb.append("\"action_taken\":\"").append(escape(actionTaken)).append("\",");
-        sb.append("\"roll\":").append(roll).append(",");
+        sb.append("\"snapshot_label\":\"").append(escape(snapshotLabel)).append("\",");
+        if (setupStepIndex >= 0) {
+            sb.append("\"setup_step_index\":").append(setupStepIndex).append(",");
+        }
+        sb.append("\"roll\":");
+        if (roll == null) {
+            sb.append("null,");
+        } else {
+            sb.append(roll.intValue()).append(",");
+        }
         sb.append("\"player_state\":[");
         for (int i = 0; i < players.size(); i++) {
             Player p = players.get(i);
@@ -1179,11 +1279,20 @@ public class SelfPlayGameRunner {
 
         sb.append("\"snapshot\":{");
         sb.append("\"turn_index\":").append(turnIndex).append(",");
-        sb.append("\"current_phase\":\"main\",");
+        sb.append("\"current_phase\":\"").append(escape(phase)).append("\",");
         sb.append("\"current_player_id\":\"").append(currentPlayerId).append("\",");
         sb.append("\"current_player_name\":\"").append(escape(currentPlayerName)).append("\",");
         sb.append("\"last_action\":\"").append(escape(actionTaken)).append("\",");
-        sb.append("\"latest_dice_roll\":").append(roll).append(",");
+        sb.append("\"snapshot_label\":\"").append(escape(snapshotLabel)).append("\",");
+        if (setupStepIndex >= 0) {
+            sb.append("\"setup_step_index\":").append(setupStepIndex).append(",");
+        }
+        sb.append("\"latest_dice_roll\":");
+        if (roll == null) {
+            sb.append("null,");
+        } else {
+            sb.append(roll.intValue()).append(",");
+        }
 
         sb.append("\"recent_actions\":[");
         for (int i = 0; i < recentActions.size(); i++) {

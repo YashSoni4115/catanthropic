@@ -44,8 +44,9 @@ class VectorizedState:
 class StateVectorizerV1:
     VERSION = "vec_v1.1.0"
 
-    def __init__(self, adjacency_features_enabled: bool = True):
+    def __init__(self, adjacency_features_enabled: bool = True, economy_features_enabled: bool = False):
         self.adjacency_features_enabled = adjacency_features_enabled
+        self.economy_features_enabled = economy_features_enabled
 
     def feature_spec(self, state: Dict[str, Any]) -> List[FeatureGroup]:
         x, _, feature_groups, _, _ = self._vectorize_internal(state)
@@ -429,6 +430,23 @@ class StateVectorizerV1:
         key_indices["engineered_self_blocked_production"] = key_indices["engineered.self_blocked_production_total"]
         key_indices["engineered_opp_blocked_production"] = key_indices["engineered.opp_blocked_production_total"]
 
+        if self.economy_features_enabled:
+            from ai.economy import build_economy_state_v1, flatten_economy_features_v1
+
+            viewer_id = current_player_id
+            if viewer_id is None and ordered_players:
+                viewer_id = ordered_players[0].get("player_id")
+
+            economy_values: List[float] = []
+            economy_names: List[str] = []
+            if viewer_id is not None:
+                economy_state = build_economy_state_v1(state, view="observed", include_trade=True, include_belief=False)
+                economy_features = flatten_economy_features_v1(economy_state, str(viewer_id))
+                for feature_name in sorted(economy_features.keys()):
+                    economy_names.append(feature_name)
+                    economy_values.append(float(economy_features[feature_name]))
+            add_group("economy", economy_values, economy_names)
+
         schema_hash = hashlib.sha256("|".join(feature_names).encode("utf-8")).hexdigest()
 
         meta = {
@@ -441,6 +459,7 @@ class StateVectorizerV1:
             "tracked_resources": TRACKED_RESOURCES,
             "feature_schema_hash": schema_hash,
             "adjacency_features_enabled": self.adjacency_features_enabled,
+            "economy_features_enabled": self.economy_features_enabled,
         }
         return x, feature_names, feature_groups, key_indices, meta
 

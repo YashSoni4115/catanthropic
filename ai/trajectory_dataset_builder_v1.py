@@ -16,6 +16,7 @@ def iter_trajectory_rows(
     label_win: Optional[int] = None,
     allow_global_label_fallback: bool = False,
     adjacency_features_enabled: bool = True,
+    economy_features_enabled: bool = False,
     split_by_game: bool = True,
     split_seed: str = "trajectory_dataset_builder_v1",
     split_ratios: Tuple[int, int, int] = (80, 10, 10),
@@ -36,6 +37,7 @@ def iter_trajectory_rows(
         label_win=label_win,
         allow_global_label_fallback=allow_global_label_fallback,
         adjacency_features_enabled=adjacency_features_enabled,
+        economy_features_enabled=economy_features_enabled,
         split_by_game=split_by_game,
         split_seed=split_seed,
         split_ratios=split_ratios,
@@ -67,6 +69,7 @@ def build_trajectory_rows(
     label_win: Optional[int] = None,
     allow_global_label_fallback: bool = False,
     adjacency_features_enabled: bool = True,
+    economy_features_enabled: bool = False,
     split_by_game: bool = True,
     split_seed: str = "trajectory_dataset_builder_v1",
     split_ratios: Tuple[int, int, int] = (80, 10, 10),
@@ -85,6 +88,7 @@ def build_trajectory_rows(
             label_win=label_win,
             allow_global_label_fallback=allow_global_label_fallback,
             adjacency_features_enabled=adjacency_features_enabled,
+            economy_features_enabled=economy_features_enabled,
             split_by_game=split_by_game,
             split_seed=split_seed,
             split_ratios=split_ratios,
@@ -120,6 +124,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--disable-adjacency-features",
         action="store_true",
         help="Disable adjacency-derived engineered production features",
+    )
+    parser.add_argument(
+        "--enable-economy-features",
+        action="store_true",
+        help="Append flattened economy subsystem features to the vector output",
     )
     parser.add_argument(
         "--disable-split-by-game",
@@ -187,6 +196,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         label_win=args.label_win,
         allow_global_label_fallback=args.allow_global_label_fallback,
         adjacency_features_enabled=not args.disable_adjacency_features,
+        economy_features_enabled=args.enable_economy_features,
         split_by_game=not args.disable_split_by_game,
         split_seed=args.split_seed,
         split_ratios=split_ratios,

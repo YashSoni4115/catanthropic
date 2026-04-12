@@ -16,3 +16,9 @@ ai/selfplay/data/
 
 ai/tests/
 
+# Test files
+**/tests/
+**/test_*.py
+**/*_test.py
+**/Test*.java
+**/*Test.java
