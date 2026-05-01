@@ -2,28 +2,89 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, List, Optional
 
+from ai.economy.constants import (
+    ABUNDANT_TAG_THRESHOLD,
+    BALANCED_BOARD_THRESHOLD,
+    CONCENTRATED_TAG_THRESHOLD,
+    POLARIZED_BOARD_THRESHOLD,
+    ROBBER_FRAGILE_CONCENTRATION_THRESHOLD,
+    SCARCE_TAG_THRESHOLD,
+)
+
 
 def _resource_tag_prefix(resource: str) -> str:
     return resource.lower()
 
 
-def resource_environment_tags(by_resource: Dict[str, Dict[str, float]]) -> List[str]:
+def resource_tags_from_stats(resource: str, stats: Dict[str, object]) -> List[str]:
     tags: List[str] = []
+    prefix = _resource_tag_prefix(resource)
+    scarcity = float(stats.get("scarcity_score", 0.0))
+    abundance = float(stats.get("abundance_score", 0.0))
+    concentration = float(stats.get("concentration_score", 0.0))
+    if scarcity >= SCARCE_TAG_THRESHOLD:
+        tags.append(f"{prefix}_scarce")
+    if abundance >= ABUNDANT_TAG_THRESHOLD:
+        tags.append(f"{prefix}_abundant")
+    if concentration >= CONCENTRATED_TAG_THRESHOLD:
+        tags.append(f"{prefix}_concentrated")
+    return tags
+
+
+def resource_environment_tags(resource_environment: Dict[str, object]) -> List[str]:
+    """Derive board tags only from stored numeric resource-environment fields."""
+    tags: List[str] = []
+    by_resource = resource_environment.get("by_resource", resource_environment)
+    if not isinstance(by_resource, dict):
+        return tags
     if not by_resource:
         return tags
-    strongest = max(by_resource.items(), key=lambda item: (item[1].get("pip_total", 0.0), item[0]))[0]
-    weakest = min(by_resource.items(), key=lambda item: (item[1].get("pip_total", 0.0), item[0]))[0]
+    strongest = max(
+        by_resource.items(),
+        key=lambda item: (float(item[1].get("pip_total", 0.0)) if isinstance(item[1], dict) else 0.0, item[0]),
+    )[0]
+    weakest = min(
+        by_resource.items(),
+        key=lambda item: (float(item[1].get("pip_total", 0.0)) if isinstance(item[1], dict) else 0.0, item[0]),
+    )[0]
     tags.extend([f"{_resource_tag_prefix(strongest)}_environment_strongest", f"{_resource_tag_prefix(weakest)}_environment_weakest"])
     for resource, stats in sorted(by_resource.items()):
-        scarcity = float(stats.get("scarcity_score", 0.0))
-        abundance = float(stats.get("abundance_score", 0.0))
-        concentration = float(stats.get("concentration_score", 0.0))
-        if scarcity >= 0.6:
-            tags.append(f"{_resource_tag_prefix(resource)}_scarce")
-        if abundance >= 0.6:
-            tags.append(f"{_resource_tag_prefix(resource)}_abundant")
-        if concentration >= 0.65:
-            tags.append(f"{_resource_tag_prefix(resource)}_concentrated")
+        if isinstance(stats, dict):
+            tags.extend(resource_tags_from_stats(resource, stats))
+    balance_score = float(resource_environment.get("board_balance_score", 0.0))
+    polarization_score = float(resource_environment.get("board_polarization_score", 0.0))
+    if balance_score >= BALANCED_BOARD_THRESHOLD:
+        tags.append("balanced_board")
+    if polarization_score >= POLARIZED_BOARD_THRESHOLD:
+        tags.append("polarized_board")
+    return sorted(set(tags))
+
+
+def desert_robber_tags(desert_robber: Dict[str, object]) -> List[str]:
+    """Derive robber-fragility tags from stored desert/robber metrics."""
+    tags: List[str] = []
+    fragility_by_resource = desert_robber.get("robber_fragility_by_resource", {})
+    if isinstance(fragility_by_resource, dict):
+        for resource, score in sorted(fragility_by_resource.items()):
+            if float(score) >= ROBBER_FRAGILE_CONCENTRATION_THRESHOLD:
+                tags.append(f"robber_fragile_{resource.lower()}")
+        return sorted(set(tags))
+
+    for resource in desert_robber.get("robber_fragile_resources", []):
+        if isinstance(resource, str):
+            tags.append(f"robber_fragile_{resource.lower()}")
+    return sorted(set(tags))
+
+
+def board_economy_tags(board_economy: Dict[str, object]) -> List[str]:
+    """Combine symbolic board tags from numeric board economy outputs."""
+    tags: List[str] = []
+    resource_environment = board_economy.get("resource_environment")
+    desert_robber = board_economy.get("desert_robber")
+    if isinstance(resource_environment, dict):
+        tags.extend(resource_environment_tags(resource_environment))
+    if isinstance(desert_robber, dict):
+        tags.extend(desert_robber_tags(desert_robber))
     return sorted(set(tags))
 
 

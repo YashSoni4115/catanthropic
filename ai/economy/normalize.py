@@ -23,6 +23,39 @@ def score_from_cap(value: float, cap: float) -> float:
     return clamp01(value / cap)
 
 
+def scarcity_score(actual: float, baseline: float, cap: float = 1.0) -> float:
+    """Score shortage versus a fixed baseline on a 0..1 deterministic scale."""
+    if baseline <= 0.0 or cap <= 0.0:
+        return 0.0
+    deviation = max(0.0, (baseline - actual) / baseline)
+    return clamp01(deviation / cap)
+
+
+def abundance_score(actual: float, baseline: float, cap: float = 1.0) -> float:
+    """Score excess versus a fixed baseline on a 0..1 deterministic scale."""
+    if baseline <= 0.0 or cap <= 0.0:
+        return 0.0
+    deviation = max(0.0, (actual - baseline) / baseline)
+    return clamp01(deviation / cap)
+
+
+def concentration_score_from_hhi(hhi: float, item_count: int) -> float:
+    """Normalize HHI from equal distribution for item_count to single-source concentration."""
+    if item_count <= 0:
+        return 0.0
+    if item_count == 1:
+        return 1.0
+    min_hhi = 1.0 / float(item_count)
+    if hhi <= min_hhi:
+        return 0.0
+    return clamp01((hhi - min_hhi) / (1.0 - min_hhi))
+
+
+def token_quality_score(mean_pips_per_tile: float) -> float:
+    """Normalize token quality where a 6/8 token is the fixed phase-1 cap."""
+    return score_from_cap(mean_pips_per_tile, 5.0)
+
+
 def evenness_score(values: Iterable[float]) -> float:
     cleaned = [float(v) for v in values if float(v) > 0.0]
     if not cleaned:
