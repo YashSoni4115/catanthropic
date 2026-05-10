@@ -1,0 +1,23 @@
+{
+  "cache_stats": {
+    "board_cache_size": 448,
+    "hits": 149552,
+    "misses": 448,
+    "opening_cache_size": 0
+  },
+  "cap": 50000,
+  "feature_generation_s": 477.95,
+  "overhead_s": 0.33,
+  "per_model_training_s": {
+    "baseline/hgb": 1.79,
+    "baseline/logreg": 1.92,
+    "combined/hgb": 3.22,
+    "combined/logreg": 1.65,
+    "economy/hgb": 2.75,
+    "economy/logreg": 0.34
+  },
+  "rows_skipped": 206400,
+  "rows_used": 50000,
+  "total_wall_clock_s": 12.0,
+  "training_s": 11.67
+}

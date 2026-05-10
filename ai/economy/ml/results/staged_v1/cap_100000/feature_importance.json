@@ -1,0 +1,546 @@
+{
+  "baseline/hgb": {
+    "by_group": {},
+    "top_features": []
+  },
+  "baseline/logreg": {
+    "by_group": {
+      "baseline": 2.746422
+    },
+    "top_features": [
+      {
+        "feature": "vp_gap_vs_mean_opp",
+        "importance": 0.521349,
+        "rank": 1,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "current_vp",
+        "importance": 0.35299,
+        "rank": 2,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "opp0_vp",
+        "importance": 0.27259,
+        "rank": 3,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "current_GRAIN",
+        "importance": 0.268131,
+        "rank": 4,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "opp2_vp",
+        "importance": 0.171463,
+        "rank": 5,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "current_BRICK",
+        "importance": 0.162258,
+        "rank": 6,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "vp_gap_vs_max_opp",
+        "importance": 0.152624,
+        "rank": 7,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "current_LUMBER",
+        "importance": 0.14226,
+        "rank": 8,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "current_ORE",
+        "importance": 0.136891,
+        "rank": 9,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "res_gap_vs_mean_opp",
+        "importance": 0.134531,
+        "rank": 10,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "opp1_vp",
+        "importance": 0.119306,
+        "rank": 11,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "opp0_total_resources",
+        "importance": 0.096869,
+        "rank": 12,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "current_total_resources",
+        "importance": 0.088193,
+        "rank": 13,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "current_WOOL",
+        "importance": 0.056957,
+        "rank": 14,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "opp2_total_resources",
+        "importance": 0.043388,
+        "rank": 15,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "opp1_total_resources",
+        "importance": 0.012506,
+        "rank": 16,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "turn_index",
+        "importance": 0.008095,
+        "rank": 17,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "roll",
+        "importance": 0.006021,
+        "rank": 18,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "phase_unknown",
+        "importance": 0.0,
+        "rank": 19,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "phase_build",
+        "importance": 0.0,
+        "rank": 20,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "phase_trade",
+        "importance": 0.0,
+        "rank": 21,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "phase_main",
+        "importance": 0.0,
+        "rank": 22,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "phase_roll",
+        "importance": 0.0,
+        "rank": 23,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "phase_setup",
+        "importance": 0.0,
+        "rank": 24,
+        "source": "abs_coef"
+      }
+    ]
+  },
+  "combined/hgb": {
+    "by_group": {},
+    "top_features": []
+  },
+  "combined/logreg": {
+    "by_group": {
+      "baseline": 1.28857,
+      "expansion": 2.571206,
+      "player": 5.770167,
+      "player_plan": 2.032945,
+      "trade": 1.93419
+    },
+    "top_features": [
+      {
+        "feature": "self.total_share",
+        "importance": 0.970276,
+        "rank": 1,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.expansion.reachable_site_count",
+        "importance": 0.946474,
+        "rank": 2,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.plan.city",
+        "importance": 0.897865,
+        "rank": 3,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.diversity_score",
+        "importance": 0.794261,
+        "rank": 4,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.plan.road",
+        "importance": 0.764606,
+        "rank": 5,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "current_vp",
+        "importance": 0.596231,
+        "rank": 6,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.expansion.city_upside_score",
+        "importance": 0.539004,
+        "rank": 7,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.expansion.boxed_in_score",
+        "importance": 0.53426,
+        "rank": 8,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.balance_score",
+        "importance": 0.531988,
+        "rank": 9,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.ORE.expected",
+        "importance": 0.510807,
+        "rank": 10,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "vp_gap_vs_mean_opp",
+        "importance": 0.456969,
+        "rank": 11,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.total_leader_gap",
+        "importance": 0.455523,
+        "rank": 12,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.ORE.leader_gap",
+        "importance": 0.411475,
+        "rank": 13,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.GRAIN.leader_gap",
+        "importance": 0.399189,
+        "rank": 14,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.expected_total",
+        "importance": 0.392746,
+        "rank": 15,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.plan.settlement",
+        "importance": 0.370474,
+        "rank": 16,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_need.ORE",
+        "importance": 0.360563,
+        "rank": 17,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_surplus.ORE",
+        "importance": 0.359614,
+        "rank": 18,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_need.GRAIN",
+        "importance": 0.353487,
+        "rank": 19,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_need.WOOL",
+        "importance": 0.321319,
+        "rank": 20,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.port_leverage_score",
+        "importance": 0.296662,
+        "rank": 21,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_surplus.WOOL",
+        "importance": 0.285661,
+        "rank": 22,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.GRAIN.expected",
+        "importance": 0.284852,
+        "rank": 23,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.expansion_score",
+        "importance": 0.275734,
+        "rank": 24,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.expansion.frontier_score",
+        "importance": 0.275734,
+        "rank": 25,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_surplus.BRICK",
+        "importance": 0.253546,
+        "rank": 26,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.WOOL.expected",
+        "importance": 0.246997,
+        "rank": 27,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.BRICK.expected",
+        "importance": 0.243179,
+        "rank": 28,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "opp1_vp",
+        "importance": 0.23537,
+        "rank": 29,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.WOOL.leader_gap",
+        "importance": 0.232212,
+        "rank": 30,
+        "source": "abs_coef"
+      }
+    ]
+  },
+  "economy/hgb": {
+    "by_group": {},
+    "top_features": []
+  },
+  "economy/logreg": {
+    "by_group": {
+      "expansion": 2.340463,
+      "player": 5.207281,
+      "player_plan": 1.803503,
+      "trade": 2.637116
+    },
+    "top_features": [
+      {
+        "feature": "self.expansion.reachable_site_count",
+        "importance": 0.889392,
+        "rank": 1,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.total_share",
+        "importance": 0.839085,
+        "rank": 2,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.plan.city",
+        "importance": 0.776529,
+        "rank": 3,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.diversity_score",
+        "importance": 0.723411,
+        "rank": 4,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.plan.road",
+        "importance": 0.700834,
+        "rank": 5,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.balance_score",
+        "importance": 0.582206,
+        "rank": 6,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_need.GRAIN",
+        "importance": 0.565176,
+        "rank": 7,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.expansion.boxed_in_score",
+        "importance": 0.508764,
+        "rank": 8,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.expansion.city_upside_score",
+        "importance": 0.479607,
+        "rank": 9,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_need.ORE",
+        "importance": 0.44743,
+        "rank": 10,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.total_leader_gap",
+        "importance": 0.437768,
+        "rank": 11,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.ORE.leader_gap",
+        "importance": 0.412914,
+        "rank": 12,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.GRAIN.leader_gap",
+        "importance": 0.406714,
+        "rank": 13,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.ORE.expected",
+        "importance": 0.370803,
+        "rank": 14,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_surplus.BRICK",
+        "importance": 0.334339,
+        "rank": 15,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.plan.settlement",
+        "importance": 0.32614,
+        "rank": 16,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_surplus.GRAIN",
+        "importance": 0.315628,
+        "rank": 17,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_surplus.ORE",
+        "importance": 0.307104,
+        "rank": 18,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_need.WOOL",
+        "importance": 0.292338,
+        "rank": 19,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.WOOL.leader_gap",
+        "importance": 0.251366,
+        "rank": 20,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.port_leverage_score",
+        "importance": 0.236219,
+        "rank": 21,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.expansion_score",
+        "importance": 0.23135,
+        "rank": 22,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.expansion.frontier_score",
+        "importance": 0.23135,
+        "rank": 23,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.LUMBER.expected",
+        "importance": 0.224793,
+        "rank": 24,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.ORE.rank",
+        "importance": 0.221094,
+        "rank": 25,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_surplus.WOOL",
+        "importance": 0.214122,
+        "rank": 26,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.total_rank",
+        "importance": 0.205831,
+        "rank": 27,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.trade_surplus.LUMBER",
+        "importance": 0.160979,
+        "rank": 28,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.LUMBER.rank",
+        "importance": 0.156912,
+        "rank": 29,
+        "source": "abs_coef"
+      },
+      {
+        "feature": "self.GRAIN.expected",
+        "importance": 0.138165,
+        "rank": 30,
+        "source": "abs_coef"
+      }
+    ]
+  }
+}

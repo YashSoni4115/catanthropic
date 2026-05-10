@@ -1,0 +1,20 @@
+{
+  "baseline_feature_count": 24,
+  "economy_feature_count": 89,
+  "input": "/Users/yash/Desktop/catanthropic/ai/selfplay/data/selfplay_guided_1000games_v3_extracted.jsonl",
+  "max_rows": 150000,
+  "models": [
+    "hgb",
+    "logreg"
+  ],
+  "output_dir": "/Users/yash/Desktop/catanthropic/ai/economy/ml/results/staged_v1/cap_150000",
+  "seed": 42,
+  "split_ratios": [
+    80,
+    10,
+    10
+  ],
+  "split_seed": "economy_experiment_v1",
+  "top_k_importance": 30,
+  "winner_only": true
+}

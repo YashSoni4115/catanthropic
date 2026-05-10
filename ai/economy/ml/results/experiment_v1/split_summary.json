@@ -1,0 +1,17 @@
+{
+  "test": {
+    "games": 6,
+    "positive_rate": 0.2511,
+    "rows": 1609
+  },
+  "train": {
+    "games": 53,
+    "positive_rate": 0.2506,
+    "rows": 17102
+  },
+  "val": {
+    "games": 5,
+    "positive_rate": 0.2506,
+    "rows": 1289
+  }
+}
