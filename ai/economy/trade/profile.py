@@ -14,13 +14,21 @@ def _actual_affordability(resource_cards: Dict[str, int]) -> Dict[str, bool]:
     return output
 
 
-def _bottleneck_map(bottlenecks: List[Dict[str, float | str]]) -> Dict[str, float]:
+def _bottleneck_map(bottlenecks: object) -> Dict[str, float]:
+    """Extract resource -> severity from bottleneck block.
+
+    Player profile emits bottlenecks as Dict[str, Dict[str, float]]
+    keyed by resource name, e.g. {"BRICK": {"severity": 0.7}}.
+    """
     output: Dict[str, float] = {}
-    for item in bottlenecks:
-        resource = item.get("resource")
-        severity = item.get("severity")
-        if isinstance(resource, str):
-            output[resource] = float(severity or 0.0)
+    if not isinstance(bottlenecks, dict):
+        return output
+    for resource, detail in bottlenecks.items():
+        if isinstance(detail, dict):
+            output[str(resource)] = float(detail.get("severity", 0.0))
+        elif isinstance(detail, (int, float)):
+            # Tolerate flat {resource: severity} format
+            output[str(resource)] = float(detail)
     return output
 
 
@@ -61,7 +69,7 @@ def build_trade_profile(
         expected_by_resource = dict(profile.get("expected_production_by_resource", {}))
         strongest_resource = max(expected_by_resource.items(), key=lambda item: (item[1], item[0]))[0] if expected_by_resource else None
         weakest_resource = min(expected_by_resource.items(), key=lambda item: (item[1], item[0]))[0] if expected_by_resource else None
-        bottlenecks = _bottleneck_map(list(profile.get("bottlenecks", [])))
+        bottlenecks = _bottleneck_map(profile.get("bottlenecks", {}))
         need_scores: Dict[str, float] = {}
         surplus_scores: Dict[str, float] = {}
         for resource in TRACKED_RESOURCES:

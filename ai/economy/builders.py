@@ -28,11 +28,18 @@ def _select_state_view(state_payload: Dict[str, Any], view: str) -> Dict[str, An
         return state_payload["omniscient_state"]
     if view == "observed" and isinstance(state_payload.get("observed_state"), dict):
         return state_payload["observed_state"]
+    # If the payload has neither observed_state nor omniscient_state keys,
+    # treat the payload itself as the state (flat payload format).
+    if "observed_state" not in state_payload and "omniscient_state" not in state_payload:
+        return state_payload
+    # If the payload has view keys but the requested view is missing,
+    # fall back to observed only (never silently use omniscient for an observed request).
     if isinstance(state_payload.get("observed_state"), dict):
         return state_payload["observed_state"]
-    if isinstance(state_payload.get("omniscient_state"), dict):
+    if view == "omniscient" and isinstance(state_payload.get("omniscient_state"), dict):
         return state_payload["omniscient_state"]
-    return state_payload
+    # Requested view not available and no safe fallback — return empty state.
+    return {}
 
 
 def _coerce_board_block(board_input: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[Dict[str, object]], Optional[str]]:
@@ -213,9 +220,12 @@ def build_economy_state_v1(
     view: str = "observed",
     include_belief: bool = False,
     include_trade: bool = False,
+    include_opening: bool = False,
     belief_source: Any = None,
 ) -> Dict[str, object]:
-    del belief_source
+    from ai.economy.belief.adapter import build_belief_economy_v1
+    from ai.economy.trade.profile import build_trade_profile
+
     source_view = view if view in {"board_only", "observed", "omniscient"} else "observed"
     state = _select_state_view(state_payload, "observed" if source_view == "board_only" else source_view)
     board_economy = build_board_economy_v1(state)
@@ -233,16 +243,48 @@ def build_economy_state_v1(
         "board_fingerprint": fingerprint,
     }
 
-    belief_economy: Dict[str, object] = {
-        "available": False,
-        "requested": bool(include_belief),
-        "reason": "not_built_in_player_economy_phase",
-    }
-    trade_profile: Dict[str, object] = {
-        "available": False,
-        "requested": bool(include_trade),
-        "reason": "not_built_in_player_economy_phase",
-    }
+    # --- Belief economy ---
+    belief_economy: Dict[str, object]
+    if include_belief and belief_source is not None:
+        belief_economy = build_belief_economy_v1(belief_source)
+        belief_economy["requested"] = True
+    else:
+        belief_economy = {
+            "available": False,
+            "requested": bool(include_belief),
+            "reason": "belief_source_not_provided" if include_belief else "not_requested",
+        }
+
+    # --- Trade profile ---
+    trade_profile: Dict[str, object]
+    if include_trade:
+        raw_trade = build_trade_profile(
+            state=state,
+            board_economy=board_economy,
+            player_economy=player_economy,
+            belief_economy=belief_economy if belief_economy.get("available") else None,
+        )
+        trade_profile = {
+            "available": True,
+            "requested": True,
+            **raw_trade,
+        }
+    else:
+        trade_profile = {
+            "available": False,
+            "requested": False,
+            "reason": "not_requested",
+        }
+
+    # --- Opening economy (optional, stored for downstream flattening) ---
+    opening_economy: Optional[Dict[str, object]] = None
+    if include_opening:
+        opening_economy = build_opening_analysis(
+            tiles=state.get("tiles", []) if isinstance(state.get("tiles"), list) else [],
+            structures=state.get("structures", []) if isinstance(state.get("structures"), list) else [],
+            slot_ordering=_extract_slot_ordering(state_payload),
+            board_economy=board_economy,
+        )
 
     player_tags = [
         tag
@@ -251,7 +293,7 @@ def build_economy_state_v1(
         for tag in player.get("tags", [])
     ]
     summary_tags = sorted(set(board_economy_tags(board_economy) + player_tags))
-    return {
+    result: Dict[str, object] = {
         "schema_version": "economy_state_v1",
         "context": context,
         "board_economy": board_economy,
@@ -260,6 +302,9 @@ def build_economy_state_v1(
         "trade_profile": trade_profile,
         "summary_tags": summary_tags,
     }
+    if opening_economy is not None:
+        result["opening_economy"] = opening_economy
+    return result
 
 
 def build_trade_context_v1(

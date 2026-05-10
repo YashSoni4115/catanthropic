@@ -13,6 +13,7 @@ from ai.economy.constants import (
     vertex_adjacent_tiles,
     vertex_id,
 )
+from ai.economy.board.ports import port_alignment_score as _port_alignment_score, port_for_vertex
 from ai.economy.normalize import clamp01, diversity_score, evenness_score, safe_div, score_from_cap
 
 
@@ -31,14 +32,14 @@ PAIR_SCORE_WEIGHTS = {
 }
 
 VERTEX_SCORE_WEIGHTS = {
-    "ev": 0.28,
-    "recipe": 0.18,
+    "ev": 0.26,
+    "recipe": 0.17,
     "synergy": 0.14,
-    "scarcity": 0.12,
+    "scarcity": 0.11,
     "diversity": 0.10,
-    "evenness": 0.10,
+    "evenness": 0.09,
     "expansion": 0.08,
-    "port": 0.00,
+    "port": 0.05,
 }
 
 
@@ -247,27 +248,34 @@ def _expansion_frontier(
 ) -> Tuple[int, float]:
     valid_slot_set = set(valid_slots)
     first_ring = adjacent_vertices_for_vertex(x_coord, y_coord, orientation)
-    second_ring: Set[VertexKey] = set()
+    # Collect both first-ring (one road away) and second-ring (two roads away)
+    reachable: Set[VertexKey] = set()
     for neighbor in first_ring:
+        key = (neighbor["x"], neighbor["y"], neighbor["orientation"])
+        if key != (x_coord, y_coord, orientation) and key in valid_slot_set and key not in blocked_slots:
+            reachable.add(key)
         for second in adjacent_vertices_for_vertex(neighbor["x"], neighbor["y"], neighbor["orientation"]):
-            key = (second["x"], second["y"], second["orientation"])
-            if key == (x_coord, y_coord, orientation) or key not in valid_slot_set or key in blocked_slots:
+            second_key = (second["x"], second["y"], second["orientation"])
+            if second_key == (x_coord, y_coord, orientation) or second_key not in valid_slot_set or second_key in blocked_slots:
                 continue
-            second_ring.add(key)
+            reachable.add(second_key)
 
     best_total = 0.0
-    for sx, sy, so in second_ring:
+    for sx, sy, so in reachable:
         total = 0.0
         for tile_coord in vertex_adjacent_tiles(sx, sy, so):
             tile = tile_map.get((tile_coord["x"], tile_coord["y"]))
             if tile is not None:
                 total += float(tile.get("pip_weight", 0.0))
         best_total = max(best_total, total)
-    return len(second_ring), _round(score_from_cap(best_total, MAX_SINGLE_VERTEX_PIPS))
+    return len(reachable), _round(score_from_cap(best_total, MAX_SINGLE_VERTEX_PIPS))
 
 
-def _port_alignment_placeholder() -> float:
-    return 0.0
+def _compute_port_alignment(x_coord: int, y_coord: int, orientation: int, pip_by_resource: Dict[str, float], total_pips: float) -> Tuple[Optional[str], float]:
+    port = port_for_vertex(x_coord, y_coord, orientation)
+    if port is None:
+        return None, 0.0
+    return port, _round(_port_alignment_score(port, pip_by_resource, total_pips))
 
 
 def _opening_score(
@@ -386,7 +394,7 @@ def _build_single_candidates(
             valid_slots=valid_slots,
             blocked_slots=blocked_slots,
         )
-        port_alignment = _port_alignment_placeholder()
+        port, port_alignment = _compute_port_alignment(x_coord, y_coord, orientation, pip_by_resource, total_pips)
         ev_norm = _round(score_from_cap(total_pips, MAX_SINGLE_VERTEX_PIPS))
         score = _opening_score(
             ev_score_norm=ev_norm,
@@ -425,7 +433,7 @@ def _build_single_candidates(
                 "key_tile_loss_share": key_tile_loss_share,
                 "expansion_frontier_count": expansion_count,
                 "expansion_frontier_score": expansion_score,
-                "port": None,
+                "port": port,
                 "port_alignment_score": port_alignment,
                 "opening_score": score,
                 "tags": _opening_tags(
@@ -508,7 +516,10 @@ def _build_opening_pairs(
                     float(right.get("expansion_frontier_score", 0.0)),
                 )
             )
-            port_alignment = _port_alignment_placeholder()
+            port_alignment = _round(max(
+                float(left.get("port_alignment_score", 0.0)),
+                float(right.get("port_alignment_score", 0.0)),
+            ))
             total_norm = _round(score_from_cap(total_pips, MAX_PAIR_PIPS))
             pair_score = _opening_score(
                 ev_score_norm=total_norm,
@@ -615,7 +626,7 @@ def build_opening_analysis(
         "opening_rankings": rankings,
         "scoring_notes": {
             "board_resource_environment_source": "board_economy.resource_environment",
-            "port_alignment": "placeholder_until_board_port_geometry_is_extracted",
+            "port_alignment": "computed_from_hardcoded_port_vertex_map",
             "pair_distance_rule": "candidate vertices must not be identical or adjacent",
         },
     }

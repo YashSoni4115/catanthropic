@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ai.economy.constants import BUILD_RECIPES, PIP_WEIGHTS, TRACKED_RESOURCES
+from ai.economy.board.ports import port_for_vertex
 from ai.economy.normalize import (
     clamp01,
     concentration_score_from_hhi,
@@ -306,6 +307,28 @@ def _recipe_bottlenecks(expected: ResourceMap, orientation_scores: Dict[str, flo
     }
 
 
+def _port_leverage_score(
+    structures: Sequence[Dict[str, object]],
+    expected: ResourceMap,
+) -> float:
+    """Score how well the player's ports align with their production."""
+    ports: List[Optional[str]] = []
+    for structure in structures:
+        x_coord = _safe_int(structure.get("x"))
+        y_coord = _safe_int(structure.get("y"))
+        orientation = _safe_int(structure.get("orientation"))
+        if x_coord is not None and y_coord is not None and orientation is not None:
+            port = port_for_vertex(x_coord, y_coord, orientation)
+            if port is not None:
+                ports.append(port)
+    if not ports:
+        return 0.0
+    from ai.economy.board.ports import port_alignment_score as _pas
+    total = sum(max(0.0, v) for v in expected.values())
+    best = max(_pas(port, expected, total) for port in ports)
+    return _round(best)
+
+
 def _strong_weak_resources(expected: ResourceMap) -> Tuple[List[str], List[str]]:
     positive = {resource: value for resource, value in expected.items() if value > 0.0}
     strongest = sorted(TRACKED_RESOURCES, key=lambda resource: (-expected.get(resource, 0.0), resource))
@@ -450,6 +473,7 @@ def _build_player_profile(
     scarcity_capture = _scarcity_capture_score(expected, board_stats)
     robber_burden = _robber_burden(expected, blocked, bottlenecks)
     strongest, weakest = _strong_weak_resources(expected)
+    port_leverage = _port_leverage_score(structures, expected)
 
     profile: Dict[str, object] = {
         "player_id": player_id,
@@ -458,6 +482,8 @@ def _build_player_profile(
         "structure_count": len(structures),
         "settlement_count": sum(1 for structure in structures if _structure_multiplier(structure) <= 1.0),
         "city_count": sum(1 for structure in structures if _structure_multiplier(structure) > 1.0),
+        # Canonical field names first; aliases kept for backward compatibility.
+        # TODO: deprecate aliases (expected_income, total_expected_income, blocked_income, total_blocked_income)
         "expected_income": _rounded_resource_map(expected),
         "expected_production_by_resource": _rounded_resource_map(expected),
         "total_expected_income": _round(total_expected),
@@ -482,6 +508,7 @@ def _build_player_profile(
         "orientation_scores": orientation_scores,
         "top_orientations": top_orientations,
         "favored_plan": top_orientations[0] if top_orientations else None,
+        "port_leverage_score": port_leverage,
         "robber_burden": robber_burden,
         "robber_burden_score": robber_burden["blocked_share"],
         "resource_ranks": {},
