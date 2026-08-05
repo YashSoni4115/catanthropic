@@ -121,6 +121,10 @@ def _generate_single_game(
     java_guided: bool,
     java_guided_model_path: str | None,
     java_guided_python_exec: str | None,
+    java_opening_policy: str | None,
+    java_opening_model_dir: str | None,
+    java_opening_python_exec: str | None,
+    java_opening_sample_topk: int | None,
 ) -> tuple[List[str], str]:
     command = ["java", "-cp", "src", "game.SelfPlayGameRunner", "--max-turns", str(java_max_turns)]
     if java_debug:
@@ -133,6 +137,14 @@ def _generate_single_game(
         command.extend(["--guided-model-path", java_guided_model_path])
     if java_guided_python_exec:
         command.extend(["--guided-python-exec", java_guided_python_exec])
+    if java_opening_policy:
+        command.extend(["--opening-policy", java_opening_policy])
+    if java_opening_model_dir:
+        command.extend(["--opening-model-dir", java_opening_model_dir])
+    if java_opening_python_exec:
+        command.extend(["--opening-python-exec", java_opening_python_exec])
+    if java_opening_sample_topk and java_opening_sample_topk > 0:
+        command.extend(["--opening-sample-topk", str(java_opening_sample_topk)])
     if java_seed is not None:
         command.extend(["--seed", str(java_seed)])
     result = _run_command(command, cwd=repo_root)
@@ -151,9 +163,13 @@ def generate_trajectories(
     java_guided: bool,
     java_guided_model_path: str | None,
     java_guided_python_exec: str | None,
-    extract_state: bool,
-    progress_enabled: bool,
-    progress_bar_width: int,
+    java_opening_policy: str | None = None,
+    java_opening_model_dir: str | None = None,
+    java_opening_python_exec: str | None = None,
+    java_opening_sample_topk: int | None = None,
+    extract_state: bool = True,
+    progress_enabled: bool = True,
+    progress_bar_width: int = 30,
 ) -> int:
     extract_board_state_from_snapshot: Callable[..., Dict[str, Any]] | None = None
     if extract_state:
@@ -177,6 +193,10 @@ def generate_trajectories(
                 java_guided=java_guided,
                 java_guided_model_path=java_guided_model_path,
                 java_guided_python_exec=java_guided_python_exec,
+                java_opening_policy=java_opening_policy,
+                java_opening_model_dir=java_opening_model_dir,
+                java_opening_python_exec=java_opening_python_exec,
+                java_opening_sample_topk=java_opening_sample_topk,
             )
             for row in rows:
                 out_row = row
@@ -222,6 +242,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--java-guided", action="store_true", help="Forwarded to Java runner --guided")
     parser.add_argument("--java-guided-model-path", default=None, help="Forwarded to Java runner --guided-model-path")
     parser.add_argument("--java-guided-python-exec", default=None, help="Forwarded to Java runner --guided-python-exec")
+    parser.add_argument("--java-opening-policy", default=None,
+                        choices=["random", "value_model", "value_model_topk"],
+                        help="Opening placement policy (default: random)")
+    parser.add_argument("--java-opening-model-dir", default=None,
+                        help="Model directory for value_model opening policy")
+    parser.add_argument("--java-opening-python-exec", default=None,
+                        help="Python executable for opening scorer subprocess")
+    parser.add_argument("--java-opening-sample-topk", type=int, default=None,
+                        help="Sample from top-k opening candidates (for value_model_topk)")
     parser.add_argument(
         "--no-extract-state",
         action="store_true",
@@ -252,6 +281,10 @@ def main() -> int:
         java_guided=args.java_guided,
         java_guided_model_path=args.java_guided_model_path,
         java_guided_python_exec=args.java_guided_python_exec,
+        java_opening_policy=args.java_opening_policy,
+        java_opening_model_dir=args.java_opening_model_dir,
+        java_opening_python_exec=args.java_opening_python_exec,
+        java_opening_sample_topk=args.java_opening_sample_topk,
         extract_state=not args.no_extract_state,
         progress_enabled=not args.no_progress,
         progress_bar_width=max(10, args.progress_bar_width),

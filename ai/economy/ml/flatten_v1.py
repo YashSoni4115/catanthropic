@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from ai.economy.constants import TRACKED_RESOURCES
+from ai.economy.constants import MAX_OPPONENTS_SCHEMA_V1, TRACKED_RESOURCES
 
 
-VERSION = "economy_flat_v1.1.0"
+# CHANGELOG: v1.2.0 — FIX 3 opening features always emitted (no more
+# variable-length vector); FIX 4 belief slots padded to MAX_OPPONENTS.
+VERSION = "economy_flat_v1.2.0"
 
 
 def flatten_economy_features_v1(
@@ -27,16 +29,29 @@ def flatten_economy_features_v1(
         features[f"board.{resource}.abundance_score"] = float(stats.get("abundance_score", 0.0))
         features[f"board.{resource}.concentration_score"] = float(stats.get("concentration_score", 0.0))
 
-    # Opening features: prefer explicit argument, then economy_state slot
+    # Opening features: prefer explicit argument, then economy_state slot,
+    # then board_economy (which already contains opening rankings from
+    # build_board_profile).  FIX 3: always emit these features with 0.0
+    # defaults to keep vector length constant.
+    # CHANGELOG (schema_version=1, economy_flat_v1.2.0): board.opening.best_ev
+    # and board.opening.best_balance now carry real values from
+    # board_economy.opening_rankings instead of defaulting to 0.0.  Vector
+    # length and key order are unchanged; only feature values differ.
     resolved_opening = opening_economy
     if resolved_opening is None:
         resolved_opening = economy_state.get("opening_economy") if isinstance(economy_state.get("opening_economy"), dict) else None
-    if isinstance(resolved_opening, dict):
-        opening_rankings = resolved_opening.get("opening_rankings", {}) if isinstance(resolved_opening.get("opening_rankings"), dict) else {}
-        top_by_ev = opening_rankings.get("top_by_ev", []) if isinstance(opening_rankings.get("top_by_ev"), list) else []
-        top_by_balance = opening_rankings.get("top_by_balance", []) if isinstance(opening_rankings.get("top_by_balance"), list) else []
-        features["board.opening.best_ev"] = float(top_by_ev[0].get("ev_score", 0.0)) if top_by_ev else 0.0
-        features["board.opening.best_balance"] = float(top_by_balance[0].get("evenness_score", 0.0)) if top_by_balance else 0.0
+    if resolved_opening is None and isinstance(board_economy.get("opening_rankings"), dict):
+        resolved_opening = board_economy
+
+    opening_rankings = (
+        resolved_opening.get("opening_rankings", {})
+        if isinstance(resolved_opening, dict) and isinstance(resolved_opening.get("opening_rankings"), dict)
+        else {}
+    )
+    top_by_ev = opening_rankings.get("top_by_ev", []) if isinstance(opening_rankings.get("top_by_ev"), list) else []
+    top_by_balance = opening_rankings.get("top_by_balance", []) if isinstance(opening_rankings.get("top_by_balance"), list) else []
+    features["board.opening.best_ev"] = float(top_by_ev[0].get("ev_score", 0.0)) if top_by_ev else 0.0
+    features["board.opening.best_balance"] = float(top_by_balance[0].get("evenness_score", 0.0)) if top_by_balance else 0.0
 
     player_profiles = (
         economy_state.get("player_economy", {}).get("by_player", [])
@@ -96,7 +111,10 @@ def flatten_economy_features_v1(
         features[f"self.trade_need.{resource}"] = float((self_trade.get("need_scores") or {}).get(resource, 0.0))
         features[f"self.trade_surplus.{resource}"] = float((self_trade.get("surplus_scores") or {}).get(resource, 0.0))
 
-    # Belief features — flatten all opponents in deterministic rank order
+    # Belief features — flatten all opponents in deterministic rank order.
+    # FIX 4: Always produce MAX_OPPONENTS_SCHEMA_V1 (3) opponent slots for
+    # schema_version=1 fixed-length vector.  Missing opponent slots are
+    # padded with 0.0 placeholders rather than shifting indices.
     belief_economy = economy_state.get("belief_economy", {}) if isinstance(economy_state.get("belief_economy"), dict) else {}
     belief_by_player = belief_economy.get("by_player", {}) if isinstance(belief_economy.get("by_player"), dict) else {}
     # Build opponent list ordered by income rank (stable across runs)
@@ -104,10 +122,14 @@ def flatten_economy_features_v1(
         [p for p in player_profiles if isinstance(p, dict) and p.get("player_id") != viewer_player_id],
         key=lambda p: (int(p.get("total_income_rank") or 999), str(p.get("player_id") or "")),
     )
-    for opponent_index, opponent_profile in enumerate(opponent_profiles):
-        opponent_id = str(opponent_profile.get("player_id") or "")
-        summary = belief_by_player.get(opponent_id, {})
-        if not isinstance(summary, dict):
+    for opponent_index in range(MAX_OPPONENTS_SCHEMA_V1):
+        if opponent_index < len(opponent_profiles):
+            opponent_id = str(opponent_profiles[opponent_index].get("player_id") or "")
+            summary = belief_by_player.get(opponent_id, {})
+            if not isinstance(summary, dict):
+                summary = {}
+        else:
+            # Pad missing opponent slot with empty summary
             summary = {}
         for resource in TRACKED_RESOURCES:
             features[f"belief.opp{opponent_index}.{resource}.p_at_least_one"] = float((summary.get("p_at_least_one") or {}).get(resource, 0.0))

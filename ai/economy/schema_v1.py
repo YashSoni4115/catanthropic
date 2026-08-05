@@ -195,7 +195,7 @@ class PlayerEconomyV1(TypedDict):
     diversity_score: float
     evenness_score: float
     concentration_score: float
-    bottlenecks: Dict[str, Dict[str, float]]
+    bottlenecks: Dict[str, float]
     scarcity_capture_score: float
     strong_resources: List[str]
     weak_resources: List[str]

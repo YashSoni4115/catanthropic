@@ -632,6 +632,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=3,
         help="Permutation repeats for feature importance (used when needed)",
     )
+    parser.add_argument(
+        "--enable-economy-features",
+        action="store_true",
+        help="Append economy features from the economy subsystem when vectorising raw states",
+    )
     return parser
 
 
@@ -669,6 +674,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             drop_unlabeled=True,
             drop_consecutive_duplicate_positions=not args.disable_drop_consecutive_duplicates,
             skip_malformed=True,
+            economy_features_enabled=bool(args.enable_economy_features),
         )
     elif input_format == "rows":
         row_iter = _iter_jsonl(input_path)
@@ -781,6 +787,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "skip_feature_importance": bool(args.skip_feature_importance),
         "perm_importance_sample_size": args.perm_importance_sample_size,
         "perm_importance_repeats": args.perm_importance_repeats,
+        "economy_features_enabled": bool(args.enable_economy_features),
     }
 
     _save_json(output_dir / "config.json", config_payload)

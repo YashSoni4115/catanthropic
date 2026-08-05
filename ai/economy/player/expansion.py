@@ -291,9 +291,13 @@ def _player_bottlenecks(player_profile: Optional[Dict[str, object]]) -> Dict[str
     raw = player_profile.get("bottlenecks", {}) if isinstance(player_profile, dict) else {}
     output = {resource: 0.0 for resource in TRACKED_RESOURCES}
     if isinstance(raw, dict):
-        for resource, detail in raw.items():
-            if resource in output and isinstance(detail, dict):
-                output[resource] = float(detail.get("severity", 0.0))
+        for resource in TRACKED_RESOURCES:
+            value = raw.get(resource, 0.0)
+            if isinstance(value, (int, float)):
+                output[resource] = float(value)
+            elif isinstance(value, dict):
+                # Legacy format: {"severity": float}
+                output[resource] = float(value.get("severity", 0.0))
     return output
 
 

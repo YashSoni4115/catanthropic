@@ -330,6 +330,10 @@ def _run_pipeline(
     java_guided: bool,
     java_guided_model_path: Optional[str],
     java_guided_python_exec: Optional[str],
+    java_opening_policy: Optional[str],
+    java_opening_model_dir: Optional[str],
+    java_opening_python_exec: Optional[str],
+    java_opening_sample_topk: Optional[int],
     no_precompile: bool,
     dry_run: bool,
     generation_mode: str,
@@ -406,6 +410,14 @@ def _run_pipeline(
             cmd.extend(["--java-guided-model-path", java_guided_model_path])
         if java_guided_python_exec:
             cmd.extend(["--java-guided-python-exec", java_guided_python_exec])
+        if java_opening_policy:
+            cmd.extend(["--java-opening-policy", java_opening_policy])
+        if java_opening_model_dir:
+            cmd.extend(["--java-opening-model-dir", java_opening_model_dir])
+        if java_opening_python_exec:
+            cmd.extend(["--java-opening-python-exec", java_opening_python_exec])
+        if java_opening_sample_topk and java_opening_sample_topk > 0:
+            cmd.extend(["--java-opening-sample-topk", str(java_opening_sample_topk)])
 
         if generation_mode == "raw" or extract_after:
             cmd.append("--no-extract-state")
@@ -579,6 +591,11 @@ def _add_shared_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--java-guided", action="store_true")
     parser.add_argument("--java-guided-model-path", default=None)
     parser.add_argument("--java-guided-python-exec", default=None)
+    parser.add_argument("--java-opening-policy", default=None,
+                        choices=["random", "value_model", "value_model_topk"])
+    parser.add_argument("--java-opening-model-dir", default=None)
+    parser.add_argument("--java-opening-python-exec", default=None)
+    parser.add_argument("--java-opening-sample-topk", type=int, default=None)
     parser.add_argument("--python-exec", default=sys.executable)
     parser.add_argument("--no-precompile", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -640,6 +657,10 @@ def _execute_run_like(args: argparse.Namespace) -> RunResult:
         java_guided=bool(args.java_guided),
         java_guided_model_path=args.java_guided_model_path,
         java_guided_python_exec=args.java_guided_python_exec,
+        java_opening_policy=getattr(args, 'java_opening_policy', None),
+        java_opening_model_dir=getattr(args, 'java_opening_model_dir', None),
+        java_opening_python_exec=getattr(args, 'java_opening_python_exec', None),
+        java_opening_sample_topk=getattr(args, 'java_opening_sample_topk', None),
         no_precompile=bool(args.no_precompile),
         dry_run=bool(args.dry_run),
         generation_mode=str(args.generation_mode),

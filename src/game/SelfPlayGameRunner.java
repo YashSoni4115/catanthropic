@@ -36,6 +36,43 @@ public class SelfPlayGameRunner {
         boolean guided = false;
         String guidedModelPath = "";
         String guidedPythonExec = "python3";
+        String openingPolicy = "random";
+        String openingModelDir = "";
+        String openingPythonExec = "python3";
+        int openingSampleTopK = 0;
+        // External-policy mode: on the AI player's turn, block for a decision
+        // over stdin instead of running the built-in policy.
+        boolean externalPolicy = false;
+        int aiPlayerIndex = -1;
+    }
+
+    /**
+     * Client for the interactive Python bridge (v1).
+     * Communicates over Java's own System.in / System.out using
+     * line-delimited JSON.  See ai/bridge/game_bridge_v1.py for the
+     * Python counterpart and the protocol spec.
+     */
+    private static final class ExternalPolicyClient {
+        private final BufferedReader in;
+        private int nextRequestId = 1;
+        int fallbackCount = 0;
+
+        ExternalPolicyClient() {
+            this.in = new BufferedReader(new InputStreamReader(System.in));
+        }
+
+        /** Send a JSON line to Python and read its JSON response line. */
+        String exchange(String requestJson) throws IOException {
+            System.out.println(requestJson);
+            System.out.flush();
+            String line = in.readLine();
+            if (line == null) {
+                throw new IOException("external policy: EOF from Python bridge");
+            }
+            return line;
+        }
+
+        int nextId() { return nextRequestId++; }
     }
 
     private static final class GuidedModelScorer {
@@ -87,6 +124,98 @@ public class SelfPlayGameRunner {
         }
     }
 
+    private static final class OpeningScorer {
+        private final Process process;
+        private final BufferedWriter input;
+        private final BufferedReader output;
+
+        OpeningScorer(Config config) throws IOException {
+            ArrayList<String> command = new ArrayList<String>();
+            command.add(config.openingPythonExec);
+            command.add("-u");
+            command.add("ai/selfplay/opening_scorer_v1.py");
+            command.add("--model-dir");
+            command.add(config.openingModelDir);
+            if (config.openingSampleTopK > 0) {
+                command.add("--sample-topk");
+                command.add(String.valueOf(config.openingSampleTopK));
+            }
+
+            ProcessBuilder pb = new ProcessBuilder(command);
+            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+            this.process = pb.start();
+            this.input = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
+            this.output = new BufferedReader(new InputStreamReader(process.getInputStream()));
+        }
+
+        /**
+         * Send current board snapshot, receive ranked (settlement, road) placements.
+         * Returns list of int[6] arrays: {sx, sy, so, rx, ry, ro}.
+         */
+        List<int[]> scorePlacements(String snapshotJson) throws IOException {
+            input.write(snapshotJson);
+            input.newLine();
+            input.flush();
+
+            String response = output.readLine();
+            if (response == null) {
+                throw new IOException("opening scorer returned EOF");
+            }
+            return parsePlacements(response);
+        }
+
+        void close() {
+            try { input.close(); } catch (Exception ignored) {}
+            try { output.close(); } catch (Exception ignored) {}
+            try { process.destroy(); } catch (Exception ignored) {}
+        }
+    }
+
+    private static List<int[]> parsePlacements(String json) {
+        List<int[]> result = new ArrayList<int[]>();
+        // Minimal JSON parsing for {"placements":[{"sx":...,"sy":...,"so":...,"rx":...,"ry":...,"ro":...}]}
+        int idx = json.indexOf("\"placements\"");
+        if (idx < 0) return result;
+        int arrStart = json.indexOf('[', idx);
+        if (arrStart < 0) return result;
+        int arrEnd = json.indexOf(']', arrStart);
+        if (arrEnd < 0) return result;
+        String arrContent = json.substring(arrStart + 1, arrEnd);
+        // Split on "}," to get individual placement objects
+        String[] parts = arrContent.split("\\},");
+        for (String part : parts) {
+            part = part.trim();
+            if (part.isEmpty()) continue;
+            if (!part.endsWith("}")) part = part + "}";
+            int sx = extractInt(part, "\"sx\"");
+            int sy = extractInt(part, "\"sy\"");
+            int so = extractInt(part, "\"so\"");
+            int rx = extractInt(part, "\"rx\"");
+            int ry = extractInt(part, "\"ry\"");
+            int ro = extractInt(part, "\"ro\"");
+            result.add(new int[]{sx, sy, so, rx, ry, ro});
+        }
+        return result;
+    }
+
+    private static int extractInt(String json, String key) {
+        int idx = json.indexOf(key);
+        if (idx < 0) return -1;
+        int colon = json.indexOf(':', idx + key.length());
+        if (colon < 0) return -1;
+        StringBuilder sb = new StringBuilder();
+        for (int i = colon + 1; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '-' || (c >= '0' && c <= '9')) {
+                sb.append(c);
+            } else if (sb.length() > 0) {
+                break;
+            }
+        }
+        if (sb.length() == 0) return -1;
+        return Integer.parseInt(sb.toString());
+    }
+
     private static final class ActionTrace {
         ArrayList<String> successfulActions = new ArrayList<String>();
     }
@@ -113,13 +242,28 @@ public class SelfPlayGameRunner {
         HashSet<Integer> seenTurns = new HashSet<Integer>();
         String terminationReason = "error";
         GuidedModelScorer scorer = null;
+        OpeningScorer openingScorer = null;
+        ExternalPolicyClient externalClient = null;
 
         try {
+            if (config.externalPolicy) {
+                if (config.aiPlayerIndex < 0) {
+                    throw new IllegalArgumentException("--external-policy requires --ai-player <index>");
+                }
+                externalClient = new ExternalPolicyClient();
+            }
             if (config.guided) {
                 if (config.guidedModelPath == null || config.guidedModelPath.trim().isEmpty()) {
                     throw new IllegalArgumentException("--guided requires --guided-model-path");
                 }
                 scorer = new GuidedModelScorer(config);
+            }
+
+            if ("value_model".equals(config.openingPolicy) || "value_model_topk".equals(config.openingPolicy)) {
+                if (config.openingModelDir == null || config.openingModelDir.trim().isEmpty()) {
+                    throw new IllegalArgumentException("--opening-policy value_model requires --opening-model-dir");
+                }
+                openingScorer = new OpeningScorer(config);
             }
 
             Player setupStarter = players.get(0);
@@ -141,7 +285,7 @@ public class SelfPlayGameRunner {
                 )
             );
 
-            runInitialPlacements(game, players, rng, trajectory, gameId, snapshotCursor);
+            runInitialPlacements(game, players, rng, trajectory, gameId, snapshotCursor, openingScorer, config, externalClient);
             assertAllResourcesNonNegative(players, "post_initial_placement");
 
             while (!game.over() && turnIndex < config.maxTurns) {
@@ -171,7 +315,12 @@ public class SelfPlayGameRunner {
                 rollApplications++;
                 if (roll == 7) {
                     safeHalfCards(players, rng);
-                    maybeMoveRobber(game, rng);
+                    boolean isAi = externalClient != null && currentPlayerId == config.aiPlayerIndex;
+                    if (isAi) {
+                        maybeMoveRobberExternal(game, players, current, rng, externalClient, config, turnIndex, gameId);
+                    } else {
+                        maybeMoveRobber(game, rng);
+                    }
                 }
                 if (rollApplications != 1) {
                     fail(config, "roll_applied_invalid_count", "count=" + rollApplications + " turn=" + turnIndex);
@@ -179,7 +328,13 @@ public class SelfPlayGameRunner {
 
                 int totalResAfterRoll = totalResources(players);
 
-                ActionTrace trace = performRandomTurnActions(game, players, current, rng, config, gameId, turnIndex, roll, scorer);
+                ActionTrace trace;
+                boolean isAiTurn = externalClient != null && currentPlayerId == config.aiPlayerIndex;
+                if (isAiTurn) {
+                    trace = performExternalTurnActions(game, players, current, rng, config, gameId, turnIndex, roll, externalClient);
+                } else {
+                    trace = performRandomTurnActions(game, players, current, rng, config, gameId, turnIndex, roll, scorer);
+                }
                 ArrayList<String> actions = trace.successfulActions;
 
                 String actionLabel = actions.isEmpty() ? "pass" : String.join("+", actions);
@@ -264,6 +419,27 @@ public class SelfPlayGameRunner {
                 winnerName = winner.getName();
             }
 
+            // Bridge marker (before the trajectory dump) so the Python
+            // bridge can end its read loop cleanly.
+            if (externalClient != null) {
+                boolean aiWon = false;
+                String aiName = "";
+                if (config.aiPlayerIndex >= 0 && config.aiPlayerIndex < players.size()) {
+                    aiName = players.get(config.aiPlayerIndex).getName();
+                    aiWon = "winner".equals(terminationReason) && winner != null
+                            && aiName.equals(winner.getName());
+                }
+                System.out.println(
+                    "{\"type\":\"game_over\",\"winner\":\"" + escape(winnerName)
+                    + "\",\"turns\":" + turnIndex
+                    + ",\"ai_player\":\"" + escape(aiName)
+                    + "\",\"ai_won\":" + aiWon
+                    + ",\"termination_reason\":\"" + escape(terminationReason)
+                    + "\",\"fallbacks\":" + externalClient.fallbackCount + "}"
+                );
+                System.out.flush();
+            }
+
             for (int i = 0; i < trajectory.size(); i++) {
                 boolean isTerminal = i == trajectory.size() - 1;
                 String suffix = ",\"winner_player_id\":\"" + escape(winnerId) + "\",\"winner_player_name\":\""
@@ -283,6 +459,9 @@ public class SelfPlayGameRunner {
         } finally {
             if (scorer != null) {
                 scorer.close();
+            }
+            if (openingScorer != null) {
+                openingScorer.close();
             }
         }
     }
@@ -310,6 +489,18 @@ public class SelfPlayGameRunner {
                 config.guidedModelPath = args[++i];
             } else if ("--guided-python-exec".equals(arg) && i + 1 < args.length) {
                 config.guidedPythonExec = args[++i];
+            } else if ("--opening-policy".equals(arg) && i + 1 < args.length) {
+                config.openingPolicy = args[++i];
+            } else if ("--opening-model-dir".equals(arg) && i + 1 < args.length) {
+                config.openingModelDir = args[++i];
+            } else if ("--opening-python-exec".equals(arg) && i + 1 < args.length) {
+                config.openingPythonExec = args[++i];
+            } else if ("--opening-sample-topk".equals(arg) && i + 1 < args.length) {
+                config.openingSampleTopK = Integer.parseInt(args[++i]);
+            } else if ("--external-policy".equals(arg)) {
+                config.externalPolicy = true;
+            } else if ("--ai-player".equals(arg) && i + 1 < args.length) {
+                config.aiPlayerIndex = Integer.parseInt(args[++i]);
             }
         }
         return config;
@@ -330,11 +521,19 @@ public class SelfPlayGameRunner {
         Random rng,
         List<String> trajectory,
         String gameId,
-        SnapshotCursor snapshotCursor
+        SnapshotCursor snapshotCursor,
+        OpeningScorer openingScorer,
+        Config config,
+        ExternalPolicyClient externalClient
     ) {
         int setupStepIndex = 1;
         for (Player player : players) {
-            placeRandomInitialSettlementAndRoad(game, player, rng);
+            boolean isAi = externalClient != null && players.indexOf(player) == config.aiPlayerIndex;
+            if (isAi) {
+                placeInitialSettlementAndRoadExternal(game, players, player, rng, externalClient, config, gameId);
+            } else {
+                placeInitialSettlementAndRoad(game, players, player, rng, openingScorer, config, gameId);
+            }
             trajectory.add(
                 snapshotJsonLine(
                     game,
@@ -355,7 +554,12 @@ public class SelfPlayGameRunner {
         }
         for (int i = players.size() - 1; i >= 0; i--) {
             Player player = players.get(i);
-            placeRandomInitialSettlementAndRoad(game, player, rng);
+            boolean isAi = externalClient != null && i == config.aiPlayerIndex;
+            if (isAi) {
+                placeInitialSettlementAndRoadExternal(game, players, player, rng, externalClient, config, gameId);
+            } else {
+                placeInitialSettlementAndRoad(game, players, player, rng, openingScorer, config, gameId);
+            }
             trajectory.add(
                 snapshotJsonLine(
                     game,
@@ -376,6 +580,78 @@ public class SelfPlayGameRunner {
         }
     }
 
+    private static void placeInitialSettlementAndRoad(
+        Game game,
+        ArrayList<Player> players,
+        Player player,
+        Random rng,
+        OpeningScorer openingScorer,
+        Config config,
+        String gameId
+    ) {
+        if (openingScorer != null) {
+            try {
+                // Build a snapshot of the current board state for the scorer
+                String snapshot = snapshotJsonLine(
+                    game, players, gameId, -1, -1,
+                    players.indexOf(player), player.getName(),
+                    "setup_opening_query", Collections.<String>emptyList(),
+                    null, "setup", "opening_query", -1
+                );
+                List<int[]> placements = openingScorer.scorePlacements(snapshot);
+
+                boolean useTopK = "value_model_topk".equals(config.openingPolicy)
+                                  && config.openingSampleTopK > 0;
+
+                for (int[] placement : placements) {
+                    int sx = placement[0], sy = placement[1], so = placement[2];
+                    int rx = placement[3], ry = placement[4], ro = placement[5];
+
+                    // For top-k sampling, pick uniformly from available placements
+                    if (useTopK && placements.size() > 1) {
+                        int pick = rng.nextInt(Math.min(config.openingSampleTopK, placements.size()));
+                        int[] sampled = placements.get(pick);
+                        sx = sampled[0]; sy = sampled[1]; so = sampled[2];
+                        rx = sampled[3]; ry = sampled[4]; ro = sampled[5];
+                    }
+
+                    VertexLocation vLoc = new VertexLocation(sx, sy, so);
+                    EdgeLocation eLoc = new EdgeLocation(rx, ry, ro);
+
+                    if (game.getBoard().placeStructureNoRoad(vLoc, player)) {
+                        if (game.placeRoad(player, eLoc)) {
+                            if (config.debug) {
+                                System.err.println("[OPENING] game=" + gameId
+                                    + " player=" + player.getName()
+                                    + " policy=" + config.openingPolicy
+                                    + " settlement=" + sx + ":" + sy + ":" + so
+                                    + " road=" + rx + ":" + ry + ":" + ro);
+                            }
+                            return;
+                        }
+                        // Road failed — undo by noting this shouldn't happen with valid scorer output
+                        if (config.debug) {
+                            System.err.println("[OPENING] road placement failed at "
+                                + rx + ":" + ry + ":" + ro + ", falling back to random road");
+                        }
+                        placeRandomRoad(game, player, rng);
+                        return;
+                    }
+                    // Settlement failed, try next candidate (greedy mode) or break (topk already sampled)
+                    if (useTopK) break;
+                }
+                // If all value-model candidates failed, fall back to random
+                if (config.debug) {
+                    System.err.println("[OPENING] all value_model candidates failed, falling back to random");
+                }
+            } catch (IOException e) {
+                System.err.println("[OPENING] scorer error: " + e.getMessage() + ", falling back to random");
+            }
+        }
+        // Fallback: random placement (original behavior)
+        placeRandomInitialSettlementAndRoad(game, player, rng);
+    }
+
     private static void placeRandomInitialSettlementAndRoad(Game game, Player player, Random rng) {
         List<VertexLocation> vertices = allVertexLocations();
         Collections.shuffle(vertices, rng);
@@ -384,6 +660,88 @@ public class SelfPlayGameRunner {
                 placeRandomRoad(game, player, rng);
                 return;
             }
+        }
+    }
+
+    /**
+     * External-policy variant of initial placement.  Emits
+     * setup_settlement then setup_road decision_requests; validates and
+     * applies each via the same underlying Board methods.  Falls back
+     * to random on any illegal / malformed response.
+     */
+    private static void placeInitialSettlementAndRoadExternal(
+        Game game, ArrayList<Player> players, Player player, Random rng,
+        ExternalPolicyClient client, Config config, String gameId
+    ) {
+        // ---- Settlement ----
+        int settlementReqId = client.nextId();
+        String settlementReq = buildDecisionRequest(
+            settlementReqId, "setup_settlement", players, player, game, gameId,
+            -1, 0, Collections.singletonList("setup_settlement")
+        );
+        VertexLocation placedVertex = null;
+        try {
+            String response = client.exchange(settlementReq);
+            String kind = extractStringField(response, "action_kind");
+            if ("setup_settlement".equals(kind)) {
+                int vx = extractInt(response, "\"vertex_x\"");
+                int vy = extractInt(response, "\"vertex_y\"");
+                int vo = extractInt(response, "\"vertex_o\"");
+                if (vx >= 0 && vy >= 0 && vo >= 0) {
+                    VertexLocation vLoc = new VertexLocation(vx, vy, vo);
+                    if (game.getBoard().placeStructureNoRoad(vLoc, player)) {
+                        placedVertex = vLoc;
+                    } else {
+                        emitBridgeError(settlementReqId, "engine_rejected_setup_vertex");
+                    }
+                } else {
+                    emitBridgeError(settlementReqId, "bad_setup_vertex");
+                }
+            } else {
+                emitBridgeError(settlementReqId, "expected_setup_settlement_got:" + kind);
+            }
+        } catch (IOException e) {
+            System.err.println("[BRIDGE] setup settlement I/O error: " + e.getMessage());
+        }
+        if (placedVertex == null) {
+            client.fallbackCount++;
+            placeRandomInitialSettlementAndRoad(game, player, rng);
+            return;
+        }
+
+        // ---- Road ----
+        int roadReqId = client.nextId();
+        String roadReq = buildDecisionRequest(
+            roadReqId, "setup_road", players, player, game, gameId,
+            -1, 0, Collections.singletonList("setup_road")
+        );
+        boolean roadPlaced = false;
+        try {
+            String response = client.exchange(roadReq);
+            String kind = extractStringField(response, "action_kind");
+            if ("setup_road".equals(kind)) {
+                int ex = extractInt(response, "\"edge_x\"");
+                int ey = extractInt(response, "\"edge_y\"");
+                int eo = extractInt(response, "\"edge_o\"");
+                if (ex >= 0 && ey >= 0 && eo >= 0) {
+                    EdgeLocation eLoc = new EdgeLocation(ex, ey, eo);
+                    if (game.placeRoad(player, eLoc)) {
+                        roadPlaced = true;
+                    } else {
+                        emitBridgeError(roadReqId, "engine_rejected_setup_edge");
+                    }
+                } else {
+                    emitBridgeError(roadReqId, "bad_setup_edge");
+                }
+            } else {
+                emitBridgeError(roadReqId, "expected_setup_road_got:" + kind);
+            }
+        } catch (IOException e) {
+            System.err.println("[BRIDGE] setup road I/O error: " + e.getMessage());
+        }
+        if (!roadPlaced) {
+            client.fallbackCount++;
+            placeRandomRoad(game, player, rng);
         }
     }
 
@@ -415,6 +773,245 @@ public class SelfPlayGameRunner {
             }
         }
         return trace;
+    }
+
+    /**
+     * External-policy variant of {@link #performRandomTurnActions}.
+     *
+     * On each iteration: emit a decision_request line containing the
+     * current snapshot + legal action kinds; block for a decision_response;
+     * validate + apply the action via the same underlying Game methods.
+     * Illegal / malformed responses log an error line and fall back to
+     * the built-in random policy for that iteration (game continues).
+     */
+    private static ActionTrace performExternalTurnActions(
+        Game game,
+        ArrayList<Player> players,
+        Player player,
+        Random rng,
+        Config config,
+        String gameId,
+        int turnIndex,
+        int roll,
+        ExternalPolicyClient client
+    ) {
+        ActionTrace trace = new ActionTrace();
+        // Cap iterations so a broken Python bridge cannot spin forever.
+        int hardCap = 10;
+        for (int i = 0; i < hardCap; i++) {
+            List<String> candidates = legalActionKinds(game, player);
+            if (candidates.isEmpty()) {
+                break;
+            }
+            int reqId = client.nextId();
+            String req = buildDecisionRequest(
+                reqId, "main", players, player, game, gameId, turnIndex, roll, candidates
+            );
+            String responseLine;
+            try {
+                responseLine = client.exchange(req);
+            } catch (IOException e) {
+                System.err.println("[BRIDGE] request " + reqId + " I/O error: " + e.getMessage());
+                client.fallbackCount++;
+                return performRandomTurnActions(game, players, player, rng, config, gameId, turnIndex, roll, null);
+            }
+
+            String actionType = extractStringField(responseLine, "type");
+            if (!"decision_response".equals(actionType)) {
+                System.err.println("[BRIDGE] request " + reqId + " unexpected response type: " + actionType);
+                emitBridgeError(reqId, "bad_response_type");
+                client.fallbackCount++;
+                break;
+            }
+            String kind = extractStringField(responseLine, "action_kind");
+            if (kind == null || kind.isEmpty()) {
+                emitBridgeError(reqId, "missing_action_kind");
+                client.fallbackCount++;
+                break;
+            }
+            if ("end_turn".equals(kind) || "pass".equals(kind)) {
+                trace.successfulActions.add("pass");
+                break;
+            }
+            if (!candidates.contains(kind)) {
+                emitBridgeError(reqId, "illegal_action_kind:" + kind);
+                client.fallbackCount++;
+                break;
+            }
+
+            boolean success = applyExternalAction(game, player, kind, responseLine, rng, config, gameId, turnIndex, i);
+            if (!success) {
+                emitBridgeError(reqId, "engine_rejected:" + kind);
+                client.fallbackCount++;
+                // Try one built-in random action instead of hanging on the same kind.
+                String fallback = chooseActionKind(game, players, player, candidates, rng, config, turnIndex, roll, null);
+                if (applyActionKind(game, player, fallback, rng, config, gameId, turnIndex, i)) {
+                    trace.successfulActions.add(fallback);
+                    if ("pass".equals(fallback)) break;
+                }
+                continue;
+            }
+            trace.successfulActions.add(kind);
+        }
+        return trace;
+    }
+
+    private static String buildDecisionRequest(
+        int reqId, String phase, ArrayList<Player> players, Player current,
+        Game game, String gameId, int turnIndex, int roll, List<String> legalKinds
+    ) {
+        String snap = snapshotJsonLine(
+            game, players, gameId, -1, turnIndex,
+            players.indexOf(current), current.getName(),
+            "decision_request", Collections.<String>emptyList(),
+            Integer.valueOf(roll), phase, "decision_request", -1
+        );
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"type\":\"decision_request\",\"request_id\":").append(reqId);
+        sb.append(",\"turn\":").append(turnIndex);
+        sb.append(",\"phase\":\"").append(escape(phase)).append("\"");
+        sb.append(",\"player\":\"").append(escape(current.getName())).append("\"");
+        sb.append(",\"legal_action_kinds\":[");
+        for (int i = 0; i < legalKinds.size(); i++) {
+            sb.append("\"").append(escape(legalKinds.get(i))).append("\"");
+            if (i < legalKinds.size() - 1) sb.append(",");
+        }
+        sb.append("],\"snapshot_payload\":").append(snap).append("}");
+        return sb.toString();
+    }
+
+    private static void emitBridgeError(int reqId, String reason) {
+        System.out.println(
+            "{\"type\":\"error\",\"request_id\":" + reqId
+            + ",\"reason\":\"" + escape(reason) + "\"}"
+        );
+        System.out.flush();
+    }
+
+    /** Minimal string-field extractor for the flat protocol JSON. */
+    private static String extractStringField(String json, String key) {
+        String needle = "\"" + key + "\"";
+        int idx = json.indexOf(needle);
+        if (idx < 0) return null;
+        int colon = json.indexOf(':', idx + needle.length());
+        if (colon < 0) return null;
+        int quote = json.indexOf('"', colon + 1);
+        if (quote < 0) return null;
+        int close = json.indexOf('"', quote + 1);
+        if (close < 0) return null;
+        return json.substring(quote + 1, close);
+    }
+
+    /** Apply an externally-chosen action; params are parsed from responseLine. */
+    private static boolean applyExternalAction(
+        Game game, Player player, String kind, String responseLine,
+        Random rng, Config config, String gameId, int turnIndex, int actionIndex
+    ) {
+        int[] before = resourceVector(player);
+        if ("build_road".equals(kind)) {
+            int x = extractInt(responseLine, "\"edge_x\"");
+            int y = extractInt(responseLine, "\"edge_y\"");
+            int o = extractInt(responseLine, "\"edge_o\"");
+            if (x < 0 || y < 0 || o < 0) return false;
+            if (!canBuildRoad(player)) return false;
+            if (!game.placeRoad(player, new EdgeLocation(x, y, o))) return false;
+            int buyCode = game.buyRoad(player);
+            if (buyCode != 0) return false;
+            int[] after = resourceVector(player);
+            assertResourceDelta(after, before, new int[]{-1, 0, 0, 0, -1}, "build_road[ext]");
+            logAttempt(config, gameId, turnIndex, actionIndex, player, kind, true, "external", before, after);
+            return true;
+        }
+        if ("build_settlement".equals(kind)) {
+            int x = extractInt(responseLine, "\"vertex_x\"");
+            int y = extractInt(responseLine, "\"vertex_y\"");
+            int o = extractInt(responseLine, "\"vertex_o\"");
+            if (x < 0 || y < 0 || o < 0) return false;
+            if (!canBuildSettlement(player)) return false;
+            if (!game.placeSettlement(player, new VertexLocation(x, y, o))) return false;
+            int buyCode = game.buySettlement(player);
+            if (buyCode != 0) return false;
+            int[] after = resourceVector(player);
+            assertResourceDelta(after, before, new int[]{-1, -1, 0, -1, -1}, "build_settlement[ext]");
+            logAttempt(config, gameId, turnIndex, actionIndex, player, kind, true, "external", before, after);
+            return true;
+        }
+        if ("build_city".equals(kind)) {
+            int x = extractInt(responseLine, "\"vertex_x\"");
+            int y = extractInt(responseLine, "\"vertex_y\"");
+            int o = extractInt(responseLine, "\"vertex_o\"");
+            if (x < 0 || y < 0 || o < 0) return false;
+            if (!canBuildCity(player)) return false;
+            // Upgrade in-place: Board.placeStructure detects existing settlement.
+            if (!game.placeCity(player, new VertexLocation(x, y, o))) return false;
+            int buyCode = game.buyCity(player);
+            if (buyCode != 0) return false;
+            int[] after = resourceVector(player);
+            assertResourceDelta(after, before, new int[]{0, 0, -3, -2, 0}, "build_city[ext]");
+            logAttempt(config, gameId, turnIndex, actionIndex, player, kind, true, "external", before, after);
+            return true;
+        }
+        if ("buy_dev_card".equals(kind)) {
+            int buyCode = game.buyDevCard(player);
+            if (buyCode != 0) return false;
+            int[] after = resourceVector(player);
+            assertResourceDelta(after, before, new int[]{0, -1, -1, -1, 0}, "buy_dev_card[ext]");
+            logAttempt(config, gameId, turnIndex, actionIndex, player, kind, true, "external", before, after);
+            return true;
+        }
+        if ("trade_bank".equals(kind)) {
+            // For now use the built-in bank trade heuristic (params not
+            // parsed).  A future revision can honour give/take/qty.
+            boolean success = performBankTrade(game, player);
+            int[] after = resourceVector(player);
+            if (success) {
+                logAttempt(config, gameId, turnIndex, actionIndex, player, kind, true, "external", before, after);
+                return true;
+            }
+            return false;
+        }
+        return false;
+    }
+
+    /** External-policy robber placement: ask Python for the tile. */
+    private static void maybeMoveRobberExternal(
+        Game game, ArrayList<Player> players, Player current, Random rng,
+        ExternalPolicyClient client, Config config, int turnIndex, String gameId
+    ) {
+        int reqId = client.nextId();
+        List<String> legal = Collections.singletonList("move_robber");
+        String req = buildDecisionRequest(
+            reqId, "robber", players, current, game, gameId, turnIndex, 7, legal
+        );
+        String responseLine;
+        try {
+            responseLine = client.exchange(req);
+        } catch (IOException e) {
+            System.err.println("[BRIDGE] robber request " + reqId + " I/O error: " + e.getMessage());
+            client.fallbackCount++;
+            maybeMoveRobber(game, rng);
+            return;
+        }
+        String kind = extractStringField(responseLine, "action_kind");
+        if (!"move_robber".equals(kind)) {
+            emitBridgeError(reqId, "expected_move_robber_got:" + kind);
+            client.fallbackCount++;
+            maybeMoveRobber(game, rng);
+            return;
+        }
+        int tx = extractInt(responseLine, "\"tile_x\"");
+        int ty = extractInt(responseLine, "\"tile_y\"");
+        if (tx < 0 || ty < 0) {
+            emitBridgeError(reqId, "bad_robber_tile");
+            client.fallbackCount++;
+            maybeMoveRobber(game, rng);
+            return;
+        }
+        if (!game.getBoard().moveRobber(new Location(tx, ty))) {
+            emitBridgeError(reqId, "engine_rejected_tile");
+            client.fallbackCount++;
+            maybeMoveRobber(game, rng);
+        }
     }
 
     private static List<String> legalActionKinds(Game game, Player player) {

@@ -42,7 +42,7 @@ class VectorizedState:
 
 
 class StateVectorizerV1:
-    VERSION = "vec_v1.1.0"
+    VERSION = "vec_v1.2.0"  # v1.2.0: adds "robber" (11) + "strategic" (188) segments
 
     def __init__(self, adjacency_features_enabled: bool = True, economy_features_enabled: bool = False):
         self.adjacency_features_enabled = adjacency_features_enabled
@@ -433,9 +433,18 @@ class StateVectorizerV1:
         if self.economy_features_enabled:
             from ai.economy import build_economy_state_v1, flatten_economy_features_v1
 
-            viewer_id = current_player_id
-            if viewer_id is None and ordered_players:
-                viewer_id = ordered_players[0].get("player_id")
+            # Economy subsystem indexes players as "name:<player_name>",
+            # whereas turn_metadata.current_player_id is numeric.
+            # Resolve via current_player_name to match the economy key space.
+            current_player_name = turn_metadata.get("current_player_name")
+            if current_player_name is not None:
+                viewer_id = f"name:{current_player_name}"
+            elif ordered_players:
+                # Fallback: first player's name
+                fallback_name = ordered_players[0].get("player_name") or ordered_players[0].get("name")
+                viewer_id = f"name:{fallback_name}" if fallback_name else None
+            else:
+                viewer_id = None
 
             economy_values: List[float] = []
             economy_names: List[str] = []
@@ -446,6 +455,58 @@ class StateVectorizerV1:
                     economy_names.append(feature_name)
                     economy_values.append(float(economy_features[feature_name]))
             add_group("economy", economy_values, economy_names)
+
+            # ── "robber" segment (11 dims): robber-hotspot adapter output.
+            # Uses a pip-weighted heuristic tile distribution so the vectorizer
+            # remains standalone (no model file dependency at vectorization
+            # time). Downstream code can override with the trained model via
+            # get_robber_hotspot_features(..., model=...) if desired.
+            from ai.economy.robber_hotspot_features import (
+                ADAPTER_FEATURE_NAMES,
+                NUM_TILES,
+                _canonical_tile_order,
+                _pip_weight,
+                get_robber_hotspot_features,
+            )
+            observed_for_extras = state.get("observed_state") if isinstance(state.get("observed_state"), dict) else state
+            robber_values: List[float] = [0.0] * len(ADAPTER_FEATURE_NAMES)
+            robber_names: List[str] = list(ADAPTER_FEATURE_NAMES)
+            try:
+                tiles_sorted = _canonical_tile_order(observed_for_extras.get("tiles") or [])
+                pip_vec = [
+                    (0.0 if str(t.get("type") or "").upper() == "DESERT" or bool(t.get("robber"))
+                     else _pip_weight(t.get("number")))
+                    for t in tiles_sorted
+                ]
+                total = sum(pip_vec)
+                tile_probs = [(p / total) if total > 0 else (1.0 / NUM_TILES) for p in pip_vec]
+                # Pad/trim to 19 in case of malformed input
+                if len(tile_probs) != NUM_TILES:
+                    tile_probs = (tile_probs + [0.0] * NUM_TILES)[:NUM_TILES]
+                robber_dict = get_robber_hotspot_features(observed_for_extras, tile_probs=tile_probs)
+                robber_values = [float(robber_dict[name]) for name in ADAPTER_FEATURE_NAMES]
+            except Exception:
+                pass  # Fall back to zeros (rare — malformed input)
+            add_group("robber", robber_values, robber_names)
+
+            # ── "strategic" segment (188 dims): expanded per-player features.
+            from ai.economy.strategic_features import (
+                STRATEGIC_TOTAL_DIM,
+                build_strategic_features,
+                flatten_strategic_features,
+                validate_strategic_schema,
+            )
+            strategic_values: List[float] = [0.0] * STRATEGIC_TOTAL_DIM
+            strategic_names: List[str] = []
+            try:
+                strat = build_strategic_features(observed_for_extras)
+                validate_strategic_schema(strat)
+                strategic_values, strategic_names = flatten_strategic_features(strat)
+            except Exception:
+                # Preserve fixed length on failure using zero-filled scaffold names
+                from ai.economy.strategic_features import strategic_feature_names
+                strategic_names = strategic_feature_names()
+            add_group("strategic", strategic_values, strategic_names)
 
         schema_hash = hashlib.sha256("|".join(feature_names).encode("utf-8")).hexdigest()
 

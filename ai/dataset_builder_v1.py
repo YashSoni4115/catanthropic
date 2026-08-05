@@ -137,9 +137,15 @@ def _derive_y_win(
     winner_player_id, winner_player_name = _extract_winner_identity(payload)
 
     if current_player_id is not None and winner_player_id is not None:
-        return 1 if current_player_id == winner_player_id else 0
+        if current_player_id == winner_player_id:
+            return 1
+        # IDs may use incompatible namespaces (numeric index vs player name).
+        # Fall through to name comparison before concluding non-winner.
     if current_player_name is not None and winner_player_name is not None:
         return 1 if current_player_name == winner_player_name else 0
+    # If only IDs are available and they didn't match, use that result.
+    if current_player_id is not None and winner_player_id is not None:
+        return 0
 
     if allow_global_label_fallback and global_label_win in (0, 1):
         return global_label_win

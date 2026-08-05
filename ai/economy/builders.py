@@ -36,15 +36,24 @@ def _select_state_view(state_payload: Dict[str, Any], view: str) -> Dict[str, An
     # fall back to observed only (never silently use omniscient for an observed request).
     if isinstance(state_payload.get("observed_state"), dict):
         return state_payload["observed_state"]
-    if view == "omniscient" and isinstance(state_payload.get("omniscient_state"), dict):
-        return state_payload["omniscient_state"]
-    # Requested view not available and no safe fallback — return empty state.
-    return {}
+    # FIX 5: Requested view not available and no safe fallback — raise
+    # explicitly instead of returning empty dict silently.  Never fall back
+    # to omniscient_state when observed was requested.
+    raise ValueError(
+        f"Requested state view '{view}' is not available in the payload and no "
+        "safe fallback exists. Player-facing model input must use observed_state. "
+        f"Available keys: {[k for k in ('observed_state', 'omniscient_state') if k in state_payload]}"
+    )
 
 
 def _coerce_board_block(board_input: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[Dict[str, object]], Optional[str]]:
     if isinstance(board_input.get("observed_state"), dict) or isinstance(board_input.get("omniscient_state"), dict):
-        state = _select_state_view(board_input, "observed")
+        # Board-level data (tiles, robber) is public — prefer observed but
+        # allow omniscient since board layout is never hidden information.
+        if isinstance(board_input.get("observed_state"), dict):
+            state = board_input["observed_state"]
+        else:
+            state = board_input["omniscient_state"]
         return state, _extract_slot_ordering(board_input), str(board_input.get("schema_version")) if board_input.get("schema_version") is not None else None
     return board_input, _extract_slot_ordering(board_input), str(board_input.get("schema_version")) if board_input.get("schema_version") is not None else None
 
@@ -104,12 +113,26 @@ def build_board_economy_v1(board_state: Dict[str, Any]) -> Dict[str, object]:
     cached = _BOARD_PROFILE_CACHE.get(cache_key)
     if cached is not None:
         return deepcopy(cached)
+    tiles = state.get("tiles", []) if isinstance(state.get("tiles"), list) else []
     board_profile = build_board_profile(
-        tiles=state.get("tiles", []) if isinstance(state.get("tiles"), list) else [],
+        tiles=tiles,
         robber=_extract_robber(state),
         port_data=port_data,
         slot_ordering=slot_ordering,
     )
+    # Compute opening analysis at the board level (no structures placed) so
+    # opening_candidates and opening_rankings are always available in the
+    # board economy.  Game-state-level analysis that accounts for placed
+    # structures uses build_opening_economy_v1 / include_opening=True.
+    opening_analysis = build_opening_analysis(
+        tiles=tiles,
+        slot_ordering=slot_ordering,
+        board_economy=board_profile,
+        structures=(),
+    )
+    board_profile["opening_candidates"] = opening_analysis["opening_candidates"]
+    board_profile["opening_pairs"] = opening_analysis["opening_pairs"]
+    board_profile["opening_rankings"] = opening_analysis["opening_rankings"]
     _BOARD_PROFILE_CACHE[cache_key] = board_profile
     return deepcopy(board_profile)
 
@@ -244,15 +267,22 @@ def build_economy_state_v1(
     }
 
     # --- Belief economy ---
+    # FIX 1: Always populate belief_economy with correct shape including
+    # by_player dict and belief_unavailable flag so downstream code can
+    # check availability without KeyError.
     belief_economy: Dict[str, object]
     if include_belief and belief_source is not None:
         belief_economy = build_belief_economy_v1(belief_source)
         belief_economy["requested"] = True
+        belief_economy["belief_unavailable"] = not bool(belief_economy.get("available"))
     else:
         belief_economy = {
             "available": False,
+            "belief_unavailable": True,
             "requested": bool(include_belief),
+            "tracker_version": "resource_belief_tracker_v1",
             "reason": "belief_source_not_provided" if include_belief else "not_requested",
+            "by_player": {},
         }
 
     # --- Trade profile ---
@@ -270,10 +300,20 @@ def build_economy_state_v1(
             **raw_trade,
         }
     else:
+        # FIX 1: Populate trade_profile with correct placeholder shape
+        # so downstream code can safely access by_player and table_market.
         trade_profile = {
             "available": False,
             "requested": False,
             "reason": "not_requested",
+            "by_player": {},
+            "table_market": {
+                "leader_by_resource": {},
+                "scarce_resources": [],
+                "abundant_resources": [],
+                "top_buyers_by_resource": {},
+                "top_sellers_by_resource": {},
+            },
         }
 
     # --- Opening economy (optional, stored for downstream flattening) ---

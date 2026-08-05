@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from ai.economy.constants import BUILD_RECIPES, PIP_WEIGHTS, TRACKED_RESOURCES
+from ai.economy.constants import BUILD_RECIPES, PIP_WEIGHTS, TRACKED_RESOURCES, validate_bottleneck_schema
 from ai.economy.board.ports import port_for_vertex
 from ai.economy.normalize import (
     clamp01,
@@ -284,7 +284,12 @@ def _top_orientations(orientation_scores: Dict[str, float], limit: int = 2) -> L
     return [name for name, _ in ordered[:limit]]
 
 
-def _recipe_bottlenecks(expected: ResourceMap, orientation_scores: Dict[str, float]) -> Dict[str, Dict[str, float]]:
+def _recipe_bottlenecks(expected: ResourceMap, orientation_scores: Dict[str, float]) -> Dict[str, float]:
+    """Return bottleneck scores for all 5 resources as {resource: float}, 0-1 range.
+
+    CHANGELOG (schema_version=1): Standardised from ``{resource: {"severity": float}}``
+    (partial keys, only non-zero) to ``{resource: float}`` (all 5 resources, 0-1 range).
+    """
     plan_resources = {
         "road": BUILD_RECIPES["road"],
         "settlement": BUILD_RECIPES["settlement"],
@@ -300,11 +305,7 @@ def _recipe_bottlenecks(expected: ResourceMap, orientation_scores: Dict[str, flo
             else:
                 support = score_from_cap(expected.get(resource, 0.0), 5.0)
             resource_pressure[resource] = max(resource_pressure[resource], 1.0 - support)
-    return {
-        resource: {"severity": _round(severity)}
-        for resource, severity in sorted(resource_pressure.items())
-        if severity > 0.0
-    }
+    return {resource: _round(resource_pressure[resource]) for resource in TRACKED_RESOURCES}
 
 
 def _port_leverage_score(
@@ -338,12 +339,12 @@ def _strong_weak_resources(expected: ResourceMap) -> Tuple[List[str], List[str]]
     return strongest[:2], weakest[:2]
 
 
-def _robber_burden(expected: ResourceMap, blocked: ResourceMap, bottlenecks: Dict[str, Dict[str, float]]) -> Dict[str, object]:
+def _robber_burden(expected: ResourceMap, blocked: ResourceMap, bottlenecks: Dict[str, float]) -> Dict[str, object]:
     total = sum(expected.values())
     blocked_total = sum(blocked.values())
     blocked_resources = [resource for resource in TRACKED_RESOURCES if blocked.get(resource, 0.0) > 0.0]
     key_bottleneck_blocked = any(
-        resource in bottlenecks and float(bottlenecks[resource].get("severity", 0.0)) >= 0.45
+        resource in bottlenecks and float(bottlenecks[resource]) >= 0.45
         for resource in blocked_resources
     )
     return {
@@ -359,7 +360,7 @@ def _tags(
     expected: ResourceMap,
     orientation_scores: Dict[str, float],
     top_orientations: List[str],
-    bottlenecks: Dict[str, Dict[str, float]],
+    bottlenecks: Dict[str, float],
     diversity: float,
     evenness: float,
     concentration: float,
@@ -369,8 +370,8 @@ def _tags(
     for plan in top_orientations[:2]:
         if orientation_scores.get(plan, 0.0) > 0.0:
             tags.append(f"{plan}_favored")
-    for resource, detail in bottlenecks.items():
-        if float(detail.get("severity", 0.0)) >= 0.55:
+    for resource, severity in bottlenecks.items():
+        if float(severity) >= 0.55:
             tags.append(f"{resource.lower()}_bottleneck")
     if diversity >= 0.8 and evenness >= 0.65:
         tags.append("balanced_economy")
@@ -470,6 +471,7 @@ def _build_player_profile(
     orientation_scores = _orientation_scores(expected)
     top_orientations = _top_orientations(orientation_scores)
     bottlenecks = _recipe_bottlenecks(expected, orientation_scores)
+    validate_bottleneck_schema(bottlenecks)
     scarcity_capture = _scarcity_capture_score(expected, board_stats)
     robber_burden = _robber_burden(expected, blocked, bottlenecks)
     strongest, weakest = _strong_weak_resources(expected)

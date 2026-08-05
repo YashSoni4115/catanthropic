@@ -72,10 +72,10 @@ def _bottleneck_resources(profile: Dict[str, object], threshold: float = 0.45) -
         return []
     return sorted(
         resource
-        for resource, detail in bottlenecks.items()
+        for resource, severity in bottlenecks.items()
         if resource in TRACKED_RESOURCES
-        and isinstance(detail, dict)
-        and float(detail.get("severity", 0.0)) >= threshold
+        and isinstance(severity, (int, float))
+        and float(severity) >= threshold
     )
 
 

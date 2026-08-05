@@ -1,0 +1,14 @@
+{
+  "input": "ai/selfplay/data/selfplay_guided_1000games_v3_extracted.jsonl",
+  "input_dim": 424,
+  "max_records": null,
+  "num_classes": 19,
+  "output_dir": "ai/models/robber_hotspot_v1",
+  "seed": 42,
+  "split_ratios": [
+    80,
+    10,
+    10
+  ],
+  "split_seed": "robber_hotspot_v1"
+}

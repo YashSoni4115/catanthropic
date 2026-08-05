@@ -17,18 +17,22 @@ def _actual_affordability(resource_cards: Dict[str, int]) -> Dict[str, bool]:
 def _bottleneck_map(bottlenecks: object) -> Dict[str, float]:
     """Extract resource -> severity from bottleneck block.
 
-    Player profile emits bottlenecks as Dict[str, Dict[str, float]]
-    keyed by resource name, e.g. {"BRICK": {"severity": 0.7}}.
+    CHANGELOG (schema_version=1): bottleneck format standardised to
+    ``{resource: float}`` for all 5 resources (BRICK, WOOL, ORE, GRAIN, LUMBER),
+    with float scarcity/bottleneck score in [0, 1].
     """
-    output: Dict[str, float] = {}
     if not isinstance(bottlenecks, dict):
-        return output
-    for resource, detail in bottlenecks.items():
-        if isinstance(detail, dict):
-            output[str(resource)] = float(detail.get("severity", 0.0))
-        elif isinstance(detail, (int, float)):
-            # Tolerate flat {resource: severity} format
-            output[str(resource)] = float(detail)
+        return {resource: 0.0 for resource in TRACKED_RESOURCES}
+    output: Dict[str, float] = {}
+    for resource in TRACKED_RESOURCES:
+        value = bottlenecks.get(resource, 0.0)
+        if isinstance(value, (int, float)):
+            output[resource] = float(value)
+        elif isinstance(value, dict):
+            # Legacy format: {"severity": float} — accept but prefer new flat format
+            output[resource] = float(value.get("severity", 0.0))
+        else:
+            output[resource] = 0.0
     return output
 
 

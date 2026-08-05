@@ -113,10 +113,14 @@ def opening_candidate_tags(
 def player_economy_tags(
     favored_plan: str,
     expected_by_resource: Dict[str, float],
-    bottlenecks: Iterable[Dict[str, float | str]],
+    bottlenecks: Dict[str, float],
     port_leverage_score: float,
     robber_burden_score: float,
 ) -> List[str]:
+    """CHANGELOG (schema_version=1): bottlenecks parameter changed from
+    Iterable[Dict[str, float | str]] to Dict[str, float] — fixed-order dict
+    over all 5 resource types with float scarcity/bottleneck score (0-1).
+    """
     tags: List[str] = [f"{favored_plan}_favored"]
     if expected_by_resource:
         strongest = max(expected_by_resource.items(), key=lambda item: (item[1], item[0]))[0]
@@ -124,10 +128,8 @@ def player_economy_tags(
         if expected_by_resource[strongest] > 0.0:
             tags.append(f"{_resource_tag_prefix(strongest)}_strong")
         tags.append(f"{_resource_tag_prefix(weakest)}_weak")
-    for item in bottlenecks:
-        resource = item.get("resource")
-        severity = float(item.get("severity", 0.0))
-        if isinstance(resource, str) and severity >= 0.55:
+    for resource, severity in bottlenecks.items():
+        if isinstance(resource, str) and float(severity) >= 0.55:
             tags.append(f"{_resource_tag_prefix(resource)}_bottleneck")
     if port_leverage_score >= 0.6:
         tags.append("port_aligned")

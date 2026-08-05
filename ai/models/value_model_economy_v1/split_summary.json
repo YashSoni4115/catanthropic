@@ -1,0 +1,20 @@
+{
+  "game_split_leakage_count": 0,
+  "games": {
+    "test": 51,
+    "train": 431,
+    "val": 57
+  },
+  "num_records": 68446,
+  "positive_rate": {
+    "test": 0.24949976912421118,
+    "train": 0.2492592457109412,
+    "val": 0.25168384879725086
+  },
+  "rows": {
+    "test": 6497,
+    "train": 54674,
+    "val": 7275
+  },
+  "vector_length": 2904
+}

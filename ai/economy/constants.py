@@ -294,3 +294,36 @@ def recipe_resources(recipe_name: str) -> Tuple[str, ...]:
 
 def compact_resource_list(resources: Sequence[str]) -> str:
     return "".join(RESOURCE_SHORT.get(resource, resource[:1]) for resource in resources)
+
+
+# schema_version=1: max opponent slots for fixed-length belief features (2-4 player games)
+MAX_OPPONENTS_SCHEMA_V1: int = 3
+
+
+def validate_bottleneck_schema(bottlenecks: Dict[str, float]) -> None:
+    """Validate bottleneck scores match schema_version=1 expectations.
+
+    CHANGELOG (schema_version=1): Standardised bottleneck format from
+    ``{resource: {"severity": float}}`` (partial keys, only non-zero) to
+    ``{resource: float}`` (all 5 resources, 0-1 range).
+
+    Raises AssertionError if the schema does not match.
+    """
+    assert isinstance(bottlenecks, dict), (
+        f"bottlenecks must be dict, got {type(bottlenecks).__name__}"
+    )
+    expected_keys = set(TRACKED_RESOURCES)
+    actual_keys = set(bottlenecks.keys())
+    assert actual_keys == expected_keys, (
+        f"bottlenecks must have exactly keys {sorted(expected_keys)}, "
+        f"got {sorted(actual_keys)}"
+    )
+    for resource in TRACKED_RESOURCES:
+        score = bottlenecks[resource]
+        assert isinstance(score, (int, float)), (
+            f"bottleneck score for {resource} must be numeric, "
+            f"got {type(score).__name__}"
+        )
+        assert 0.0 <= float(score) <= 1.0, (
+            f"bottleneck score for {resource} must be in [0, 1], got {score}"
+        )
