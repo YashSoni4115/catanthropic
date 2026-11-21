@@ -17,8 +17,14 @@ ai/selfplay/data/
 ai/tests/
 
 # Test files
-**/tests/
-**/test_*.py
-**/*_test.py
+v1/**/tests/
+v1/**/test_*.py
+v1/**/*_test.py
 **/Test*.java
 **/*Test.java
+
+# Python venvs
+.venv/
+.venv-rl/
+__pycache__/
+*.pyc
