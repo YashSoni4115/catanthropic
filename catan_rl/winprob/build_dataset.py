@@ -92,7 +92,11 @@ def main(argv=None):
     p.add_argument("--policy", default="weighted_random")
     p.add_argument("--workers", type=int, default=8)
     p.add_argument("--out", default="runs/winprob/pilot")
+    p.add_argument("--keep-awake", action="store_true")
     a = p.parse_args(argv)
+    if a.keep_awake:
+        from catan_rl.eval.run import keep_awake
+        keep_awake()
     t = time.perf_counter()
     jobs = [(s, a.policy, a.n) for s in range(a.seed_base, a.seed_base + a.games)]
     with ProcessPoolExecutor(a.workers) as ex:

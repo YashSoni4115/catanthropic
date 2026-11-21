@@ -53,11 +53,34 @@ def main(argv=None):
     p.add_argument("--truth", type=int, default=0)
     p.add_argument("--truth-n", type=int, default=200)
     p.add_argument("--policy", default="weighted_random", help="policy for the truth set")
+    p.add_argument("--early-check", type=int, default=0, help="label this many early truth-pool states (wr N=200, vf N=--early-n)")
+    p.add_argument("--early-n", type=int, default=64)
     p.add_argument("--workers", type=int, default=8)
     p.add_argument("--out", default="runs/winprob/label_study")
+    p.add_argument("--keep-awake", action="store_true")
     a = p.parse_args(argv)
+    if a.keep_awake:
+        from catan_rl.eval.run import keep_awake
+        keep_awake()
     os.makedirs(a.out, exist_ok=True)
     specs = test_specs(a.data)
+
+    if a.early_check:
+        # early states from the truth pool (the last 1000 shuffled test states, i.e. the extended truth set)
+        pool = [s for s in specs[-1000:] if s.phase == "early"][-a.early_check:]
+        out = {}
+        for pol, n in (("weighted_random", a.truth_n), ("value_function", a.early_n)):
+            rows, skipped, el = run_policy(pool, pol, n, a.workers)
+            out[pol] = ({r["spec"].id: r["wins"] for r in rows}, el)
+        ids = sorted(set(out["weighted_random"][0]) & set(out["value_function"][0]))
+        pv = lambda pol: np.array([out[pol][0][i][0] / out[pol][0][i].sum() for i in ids])
+        np.savez_compressed(os.path.join(a.out, "early_check.npz"), state_id=np.array(ids),
+                            p_wr=pv("weighted_random"), p_vf=pv("value_function"))
+        s = {"states": len(ids), "wr_n": a.truth_n, "vf_n": a.early_n,
+             "seconds": {pol: el for pol, (_, el) in out.items()}}
+        json.dump(s, open(os.path.join(a.out, "early_check_summary.json"), "w"), indent=2)
+        print(json.dumps(s, indent=2))
+        return s
 
     if a.truth:
         ts = specs[-a.truth:]
