@@ -70,6 +70,20 @@ class YearOfPlentyEvent:
 @dataclass(frozen=True)
 class DevBuyEvent:
     player: str
+    card: Optional[str] = None  # revealed to the buyer only (KNIGHT, VICTORY_POINT, ...)
+
+
+@dataclass(frozen=True)
+class DevPlayEvent:
+    """Public play of a dev card (VICTORY_POINT cards are never played)."""
+    player: str
+    card: str
+
+
+@dataclass(frozen=True)
+class TurnEndEvent:
+    """Cards bought before this become playable for ``player`` (owned-at-start rule)."""
+    player: str
 
 
 @dataclass(frozen=True)
@@ -81,4 +95,5 @@ class TotalReconcileEvent:
 Event = Union[
     ProductionEvent, SpendEvent, BankTradeEvent, PlayerTradeEvent, DiscardEvent,
     StealEvent, MonopolyEvent, YearOfPlentyEvent, DevBuyEvent, TotalReconcileEvent,
+    DevPlayEvent, TurnEndEvent,
 ]

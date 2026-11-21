@@ -15,6 +15,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Union
 from catanatron.game import TURNS_LIMIT, Game
 from catanatron.models.player import Player, RandomPlayer
 
+from catan_rl.belief.devcards import DevCardBelief
 from catan_rl.belief.tracker import BeliefTracker
 from catan_rl.env import event_adapter as ea
 from catan_rl.env.actions import COLORS, DOMESTIC, action_array, to_index
@@ -24,8 +25,11 @@ Agent = Union[None, Player, Callable[["CatanEnv", object], int]]
 
 
 class CatanEnv:
-    def __init__(self, track_beliefs: bool = True, auto_forced: bool = True, record_events: bool = True):
-        self.track_beliefs, self.auto_forced, self.record_events = track_beliefs, auto_forced, record_events
+    def __init__(self, track_viewers=(), auto_forced: bool = True, record_events: bool = True):
+        """track_viewers: colors (or names) that get a BeliefTracker. Default: none.
+        record_events: keep per-viewer event lists (for the tracked viewers, or all if none tracked)."""
+        self.track_viewers = frozenset(getattr(c, "value", c) for c in track_viewers)
+        self.auto_forced, self.record_events = auto_forced, record_events
         self.on_event: Optional[Callable[[str, object], None]] = None  # hook(viewer, event)
 
     # ------------------------------------------------------------------ lifecycle
@@ -40,11 +44,12 @@ class CatanEnv:
         self.forced_decisions = self.agent_decisions = 0
         self.events: Dict[str, List[object]] = {c.value: [] for c in COLORS}
         self.trackers: Dict[str, BeliefTracker] = {}
-        if self.track_beliefs:
-            for v in COLORS:
-                t = self.trackers[v.value] = BeliefTracker(strict=True)
-                for c in COLORS:
-                    t.initialize_player(c.value, 0)
+        self.dev_beliefs: Dict[str, DevCardBelief] = {}
+        for v in self.track_viewers:
+            self.dev_beliefs[v] = DevCardBelief(v, [c.value for c in COLORS])
+            t = self.trackers[v] = BeliefTracker(strict=True)
+            for c in COLORS:
+                t.initialize_player(c.value, 0)
         self._advance()
         return self
 
@@ -71,6 +76,14 @@ class CatanEnv:
 
     def belief(self, viewer) -> BeliefTracker:
         return self.trackers[getattr(viewer, "value", viewer)]
+
+    def dev_belief(self, viewer) -> DevCardBelief:
+        return self.dev_beliefs[getattr(viewer, "value", viewer)]
+
+    def determinize(self, viewer, seed, **kw) -> Game:
+        """A playable Game with all hidden state re-sampled from ``viewer``'s beliefs (see determinize.py)."""
+        from catan_rl.env.determinize import determinize
+        return determinize(self.game, viewer, self.belief(viewer), self.dev_belief(viewer), seed, **kw)
 
     # ------------------------------------------------------------------ stepping
     def step(self, action_index: int) -> None:
@@ -109,21 +122,22 @@ class CatanEnv:
                 self._apply(self._resolve(agent(self, self.current_player())))
 
     def _apply(self, action) -> None:
-        if not (self.track_beliefs or self.record_events or self.on_event):
+        if not (self.trackers or self.record_events or self.on_event):
             self.game.play_tick(decide_fn=lambda *_: action)
             return
         before = ea.hands(self.game.state)
         record = self.game.play_tick(decide_fn=lambda *_: action)
         after = ea.hands(self.game.state)
         pairs = ea.public_events(record, before, after)
-        for v in COLORS:
-            for e in ea.events_for(v.value, pairs, after):
+        for v in (self.track_viewers or self.events.keys()):
+            for e in ea.events_for(v, pairs, after):
                 if self.record_events:
-                    self.events[v.value].append(e)
-                if self.track_beliefs:
-                    self.trackers[v.value].apply(e)
+                    self.events[v].append(e)
+                if v in self.trackers:
+                    self.trackers[v].apply(e)
+                    self.dev_beliefs[v].apply(e)
                 if self.on_event:
-                    self.on_event(v.value, e)
+                    self.on_event(v, e)
 
     # ------------------------------------------------------------------ lookahead (agent-facing)
     def lookahead_game(self) -> Game:

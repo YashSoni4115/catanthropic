@@ -8,12 +8,12 @@ import argparse
 import time
 from concurrent.futures import ProcessPoolExecutor
 
-from catan_rl.env import CatanEnv, random_agent
+from catan_rl.env import COLORS, CatanEnv, random_agent
 
 
 def _game(args):
     seed, track = args
-    env = CatanEnv(track_beliefs=track, record_events=track).reset(seed, [random_agent] * 4)
+    env = CatanEnv(track_viewers=[c.value for c in COLORS] if track else (), record_events=track).reset(seed, [random_agent] * 4)
     env.play()
     return env.forced_decisions, env.agent_decisions
 

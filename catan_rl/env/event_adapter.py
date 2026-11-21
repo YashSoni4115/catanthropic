@@ -17,6 +17,8 @@ from catan_rl.belief import events as ev
 
 # catanatron resource name -> tracker resource name
 RES = {"WOOD": "LUMBER", "BRICK": "BRICK", "SHEEP": "WOOL", "WHEAT": "GRAIN", "ORE": "ORE"}
+DEV_PLAYS = {ActionType.PLAY_KNIGHT_CARD: "KNIGHT", ActionType.PLAY_YEAR_OF_PLENTY: "YEAR_OF_PLENTY",
+             ActionType.PLAY_MONOPOLY: "MONOPOLY", ActionType.PLAY_ROAD_BUILDING: "ROAD_BUILDING"}
 Hands = Dict[str, Tuple[int, ...]]  # color name -> freqdeck in catanatron RESOURCES order
 
 
@@ -40,11 +42,14 @@ def public_events(record: ActionRecord, before: Hands, after: Hands) -> List[Tup
     a, t, actor = record.action, record.action.action_type, record.action.color.value
     out: List[Tuple[object, frozenset]] = []
     pub = frozenset()
+    if t in DEV_PLAYS:
+        out.append((ev.DevPlayEvent(actor, DEV_PLAYS[t]), pub))
     if t == ActionType.MARITIME_TRADE:
         give = Counter(RES[r] for r in a.value[:4] if r is not None)
         out.append((ev.BankTradeEvent(actor, dict(give), {RES[a.value[4]]: 1}), pub))
     elif t == ActionType.BUY_DEVELOPMENT_CARD:
-        out.append((ev.DevBuyEvent(actor), pub))
+        out.append((ev.DevBuyEvent(actor, record.result), frozenset((actor,))))
+        out.append((ev.DevBuyEvent(actor), frozenset(("*",))))
     elif t == ActionType.DISCARD_RESOURCE:
         out.append((ev.DiscardEvent(actor, {RES[record.result]: 1}, 1), pub))
     elif t == ActionType.PLAY_YEAR_OF_PLENTY:
@@ -67,6 +72,8 @@ def public_events(record: ActionRecord, before: Hands, after: Hands) -> List[Tup
                 out.append((ev.SpendEvent(c, cards(loss)), pub))
             if any(gain):
                 out.append((ev.ProductionEvent(c, cards(gain)), pub))
+    if t == ActionType.END_TURN:
+        out.append((ev.TurnEndEvent(actor), pub))
     return out
 
 
@@ -81,4 +88,6 @@ def events_for(viewer: str, pairs, after: Hands) -> List[object]:
 
 
 def _is_party(e, viewer) -> bool:
-    return isinstance(e, ev.StealEvent) and viewer in (e.thief, e.victim)
+    if isinstance(e, ev.StealEvent):
+        return viewer in (e.thief, e.victim)
+    return isinstance(e, ev.DevBuyEvent) and viewer == e.player

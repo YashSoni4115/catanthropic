@@ -27,6 +27,7 @@ class ValidatingEnv(CatanEnv):
     and records log p(true), |E[count]-true|, and tracker update time per event."""
 
     def reset(self, seed, seat_agents):
+        self.track_viewers = frozenset(c.value for c in COLORS)
         self.rows: List[tuple] = []  # (action_idx, logp, mae, n_events, seconds)
         self._t, self._n = 0.0, 0
         return super().reset(seed, seat_agents)

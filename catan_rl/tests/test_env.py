@@ -11,9 +11,11 @@ from catan_rl.env import COLORS, NUM_ACTIONS, CatanEnv, action_array, random_age
 from catan_rl.env import event_adapter as ea
 from catan_rl.env.validate import ValidatingEnv
 
+ALL = [c.value for c in COLORS]
+
 
 def play(seed, agents=None, **kw):
-    env = CatanEnv(**kw).reset(seed, agents or [random_agent] * 4)
+    env = CatanEnv(**{"track_viewers": ALL, **kw}).reset(seed, agents or [random_agent] * 4)
     env.play()
     return env
 
@@ -101,7 +103,7 @@ class TestObservationLeak(unittest.TestCase):
     def test_no_hidden_field_or_value(self):
         from catan_rl.env.observation import observed_state
         for seed in (987654321, 987654322, 987654323):
-            env = CatanEnv(track_beliefs=False).reset(seed, [None] * 4)
+            env = CatanEnv().reset(seed, [None] * 4)
             rng = random.Random(seed)
             secrets = [str(seed)] + [str(x) for x in env.game.state.dice_rng.getstate()[1][1:4]]
             for i in range(400):
@@ -154,7 +156,7 @@ class TestLookahead(unittest.TestCase):
         return [f(r) for _ in range(n)]
 
     def test_lookahead_cannot_reproduce_real_dice_or_steals(self):
-        env = CatanEnv(track_beliefs=False).reset(6, [None] * 4)
+        env = CatanEnv().reset(6, [None] * 4)
         s = env.game.state
         dice = lambda r: (r.randint(1, 6), r.randint(1, 6))
         real_dice, real_steal = self._future(s.dice_rng, 20, dice), self._future(s.steal_rng, 20, lambda r: r.random())

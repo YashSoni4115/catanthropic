@@ -343,6 +343,8 @@ class ResourceBeliefTrackerV1:
             self._monopoly(e)
         elif isinstance(e, ev.TotalReconcileEvent):
             self._apply_public_total_reconcile({"player_id": e.player, "total_cards": e.total})
+        elif isinstance(e, (ev.DevPlayEvent, ev.TurnEndEvent)):
+            return  # no resource change
         else:
             raise ValueError(f"Unsupported event: {e!r}")
 
