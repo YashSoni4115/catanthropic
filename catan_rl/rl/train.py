@@ -24,13 +24,16 @@ from catan_rl.rl.ppo import Batch, PPOConfig, update
 TRAIN_SEED_BASE = 1_000_000  # disjoint from eval (0..), winprob (0..2999), diagnostics (100000..), BC (200000..)
 
 
-def evaluate(ckpt: str, n_seeds: int, workers: int) -> dict:
-    """Checkpoint (argmax) vs 3 value_function on the standard eval seeds 0..n_seeds-1 (x4 rotations)."""
-    from catan_rl.eval.match import clustered_win_rate, run_match
+def evaluate(ckpt: str, n_seeds: int, workers: int, base=None) -> dict:
+    """Checkpoint (argmax) vs 3 value_function on the standard eval seeds 0..n_seeds-1 (x4 rotations).
+    base: update-0 results -> paired difference on the same seeds (seed-clustered bootstrap)."""
+    from catan_rl.eval.match import clustered_win_rate, paired_comparison, run_match
     res = run_match([f"ppo:{os.path.abspath(ckpt)}", "value_function", "value_function", "value_function"],
                     n_seeds, 0, workers)
     m = clustered_win_rate(res, [0])
-    return {"win_rate": m["p"], "ci_lo": m["ci95"][0], "ci_hi": m["ci95"][1], "games": len(res)}
+    d = paired_comparison(res, base if base is not None else res, slot=0)
+    return {"win_rate": m["p"], "ci_lo": m["ci95"][0], "ci_hi": m["ci95"][1], "games": len(res),
+            "diff_vs_0": d["mean_diff"], "diff_lo": d["ci95"][0], "diff_hi": d["ci95"][1], "results": res}
 
 
 def parse(argv=None):
@@ -44,7 +47,9 @@ def parse(argv=None):
     ap.add_argument("--shaping-coef", type=float, default=1.0)
     ap.add_argument("--gamma", type=float, default=1.0)
     ap.add_argument("--lam", type=float, default=0.95)
-    ap.add_argument("--lr", type=float, default=1e-4)
+    ap.add_argument("--lr", type=float, default=1e-4, help="policy head + encoder")
+    ap.add_argument("--value-lr", type=float, default=None, help="value head (default: --lr)")
+    ap.add_argument("--value-warmup", type=int, default=15, help="first N updates train only the value head")
     ap.add_argument("--epochs", type=int, default=3)
     ap.add_argument("--minibatch", type=int, default=512)
     ap.add_argument("--ent-coef", type=float, default=0.005, help="annealed linearly to 0")
@@ -77,7 +82,10 @@ def main(argv=None) -> dict:
     net, bc = ActorCritic.from_bc(a.bc, a.seed), ActorCritic.from_bc(a.bc, a.seed)
     for p in bc.parameters():
         p.requires_grad_(False)
-    opt = torch.optim.Adam(net.parameters(), lr=a.lr)
+    if a.value_lr is None:
+        a.value_lr = a.lr
+    opt = torch.optim.Adam([{"params": net.pi.parameters(), "lr": a.lr},
+                            {"params": net.v.parameters(), "lr": a.value_lr}])
     from catan_rl.winprob.phi import load_default
     phi_version = load_default().version
     cfg = PPOConfig(epochs=a.epochs, minibatch=a.minibatch)
@@ -89,18 +97,22 @@ def main(argv=None) -> dict:
     log = open(f"{a.out}/log.jsonl", "a")
     ecsv = f"{a.out}/eval.csv"
 
+    base = {}
+
     def do_eval(u):
         path = f"{a.out}/ckpt_{u:04d}.pt"
         net.save(path, {"update": u, "phi_version": phi_version, "shaping": a.shaping})
         if a.eval_every:
-            e = evaluate(path, a.eval_seeds, a.eval_workers)
+            e = evaluate(path, a.eval_seeds, a.eval_workers, base.get("res"))
+            base.setdefault("res", e["results"])
             new = not os.path.exists(ecsv)
             with open(ecsv, "a") as f:
                 w = csv.writer(f)
                 if new:
-                    w.writerow(["update", "win_rate", "ci_lo", "ci_hi", "games"])
-                w.writerow([u, e["win_rate"], e["ci_lo"], e["ci_hi"], e["games"]])
-            print(f"eval update {u}: vs 3 value_function {e['win_rate']:.3f} [{e['ci_lo']:.3f}, {e['ci_hi']:.3f}] ({e['games']} games)", flush=True)
+                    w.writerow(["update", "win_rate", "ci_lo", "ci_hi", "games", "diff_vs_0", "diff_lo", "diff_hi"])
+                w.writerow([u, e["win_rate"], e["ci_lo"], e["ci_hi"], e["games"], e["diff_vs_0"], e["diff_lo"], e["diff_hi"]])
+            print(f"eval update {u}: vs 3 value_function {e['win_rate']:.3f} [{e['ci_lo']:.3f}, {e['ci_hi']:.3f}] "
+                  f"diff vs 0 {e['diff_vs_0']:+.3f} [{e['diff_lo']:+.3f}, {e['diff_hi']:+.3f}] ({e['games']} games)", flush=True)
 
     do_eval(0)
     n_games = 0
@@ -121,9 +133,12 @@ def main(argv=None) -> dict:
             n_games += len(games)
             trajs = [tr for g in games for tr in g["trajs"]]
             b = Batch.from_trajs(trajs, a.gamma, a.lam)
-            frac = (u - 1) / max(a.updates, 1)
+            warm = u <= a.value_warmup
+            frac = max(0, u - 1 - a.value_warmup) / max(a.updates - a.value_warmup, 1)
+            ku = max(0, u - a.value_warmup)
             t = time.perf_counter()
-            st = update(net, bc, opt, b, cfg, a.ent_coef * (1 - frac), a.kl_bc_coef * a.kl_bc_decay ** u, rng)
+            st = update(net, bc, opt, b, cfg, a.ent_coef * (1 - frac), a.kl_bc_coef * a.kl_bc_decay ** ku, rng,
+                        value_only=warm)
             t_upd = time.perf_counter() - t
             win = {c: [tr["outcome"] for tr in trajs if tr["category"] == c] for c in R.CATEGORIES}
             rec = {"update": u, "games": n_games, "mean_return": float(np.mean([tr["reward"].sum() for tr in trajs])),
@@ -135,7 +150,7 @@ def main(argv=None) -> dict:
             log.write(json.dumps(rec) + "\n")
             log.flush()
             wr = " ".join(f"{c}={v:.3f}" if v is not None else f"{c}=-" for c, v in rec["win_rate"].items())
-            print(f"upd {u} ret {rec['mean_return']:.3f} win[{wr}] pl {st['policy_loss']:.4f} vl {st['value_loss']:.4f} "
+            print(f"upd {u} [{st['phase']}] ret {rec['mean_return']:.3f} win[{wr}] pl {st['policy_loss']:.4f} vl {st['value_loss']:.4f} "
                   f"ent {st['entropy']:.3f} kl_bc {st['kl_bc']:.4f} kl_prev {st['kl_prev']:.5f} clip {st['clip_frac']:.3f} "
                   f"ev {st['explained_variance']:.3f} | {rec['games_per_s']:.2f} games/s {rec['decisions_per_s']:.0f} dec/s "
                   f"{rec['learner_steps_per_s']:.0f} steps/s (roll {t_roll:.0f}s upd {t_upd:.0f}s)", flush=True)

@@ -80,6 +80,25 @@ def test_update_changes_params_masks_valid(net):
     assert torch.allclose(torch.softmax(z, -1).sum(-1), torch.ones(len(z)))
 
 
+def test_value_warmup_freezes_policy(net):
+    from catan_rl.rl.net import ActorCritic
+    g = play_game(_job(net, ["learner"] * 4, seed=1_000_555))
+    b = Batch.from_trajs(g["trajs"])
+    torch.manual_seed(0)
+    learner, bc = ActorCritic.from_bc(seed=0), ActorCritic.from_bc(seed=0)
+    opt = torch.optim.Adam([{"params": learner.pi.parameters(), "lr": 1e-3}, {"params": learner.v.parameters(), "lr": 1e-3}])
+    cfg, rng = PPOConfig(epochs=1, minibatch=128), np.random.default_rng(0)
+    p0 = learner.params()
+    st = update(learner, bc, opt, b, cfg, 0.01, 0.1, rng, value_only=True)
+    p1 = learner.params()
+    assert st["phase"] == "value_warmup"
+    assert all(np.array_equal(p0[k], p1[k]) for k in p0 if k.startswith("pi."))
+    assert any(not np.array_equal(p0[k], p1[k]) for k in p0 if k.startswith("v."))
+    st = update(learner, bc, opt, b, cfg, 0.01, 0.1, rng, value_only=False)
+    p2 = learner.params()
+    assert st["phase"] == "ppo" and any(not np.array_equal(p1[k], p2[k]) for k in p1 if k.startswith("pi."))
+
+
 def test_sampling_key_distinct_across_games():
     from catan_rl.policy.agent import sample_key
     from catan_rl.tests.test_policy import _play
@@ -111,20 +130,26 @@ def test_belief_features_leak_free():
     assert n >= 3 and nz >= 1
 
 
-def _run(out, workers=2, updates=2, eval_every=0):
+def _run(out, workers=2, updates=2, eval_every=0, warmup=1):
     from catan_rl.rl.train import main
     return main(["--out", out, "--updates", str(updates), "--games-per-update", "2", "--workers", str(workers),
                  "--minibatch", "64", "--epochs", "1", "--ckpt-every", "1", "--eval-every", str(eval_every),
-                 "--eval-seeds", "1", "--eval-workers", "2", "--shaping", "on"])
+                 "--eval-seeds", "1", "--eval-workers", "2", "--shaping", "on", "--value-warmup", str(warmup),
+                 "--lr", "2e-4", "--value-lr", "1e-3"])
 
 
 def test_smoke_two_updates(tmp_path):
+    import json
     _run(str(tmp_path), eval_every=1)
-    log = (tmp_path / "log.jsonl").read_text().strip().splitlines()
-    assert len(log) == 2
+    log = [json.loads(l) for l in (tmp_path / "log.jsonl").read_text().strip().splitlines()]
+    assert [r["phase"] for r in log] == ["value_warmup", "ppo"]
     rows = (tmp_path / "eval.csv").read_text().strip().splitlines()
-    assert rows[0].startswith("update") and [r.split(",")[0] for r in rows[1:]] == ["0", "1", "2"]
-    assert __import__("json").load(open(tmp_path / "config.json"))["phi_version"].startswith("phi_v1")
+    assert rows[0] == "update,win_rate,ci_lo,ci_hi,games,diff_vs_0,diff_lo,diff_hi"
+    assert [r.split(",")[0] for r in rows[1:]] == ["0", "1", "2"]
+    assert [float(x) for x in rows[1].split(",")[5:]] == [0.0, 0.0, 0.0]  # update 0 vs itself
+    cfg = json.load(open(tmp_path / "config.json"))
+    assert cfg["phi_version"].startswith("phi_v1") and cfg["lr"] == 2e-4 and cfg["value_lr"] == 1e-3
+    assert cfg["value_warmup"] == 1
 
 
 def test_reproducible_across_processes(tmp_path):

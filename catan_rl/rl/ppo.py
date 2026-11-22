@@ -59,7 +59,9 @@ def explained_variance(v, ret) -> float:
 
 
 def update(net: ActorCritic, bc: ActorCritic, opt, b: Batch, cfg: PPOConfig, ent_coef: float, kl_bc_coef: float,
-           rng: np.random.Generator) -> dict:
+           rng: np.random.Generator, value_only: bool = False) -> dict:
+    """value_only (warm-up): loss = value loss on a DETACHED state embedding, so only the value head moves;
+    policy head and encoder get no gradient (Adam skips params whose grad is None)."""
     adv = (b.adv - b.adv.mean()) / (b.adv.std() + 1e-8)  # per-batch normalization
     acc = {k: [] for k in ("policy_loss", "value_loss", "entropy", "kl_bc", "kl_prev", "clip_frac")}
     net.train()
@@ -70,6 +72,9 @@ def update(net: ActorCritic, bc: ActorCritic, opt, b: Batch, cfg: PPOConfig, ent
             X, A, M = prep(net.norm, b.x[i], [b.A[j] for j in i])
             y = torch.from_numpy(b.choice[i]).long()
             z, v = net(X, A, M)
+            if value_only:
+                z = z.detach()
+                v = net.v(net.pi.state(X).detach()).squeeze(-1)
             lp_all = masked_log_softmax(z, M)
             lp = lp_all.gather(1, y[:, None]).squeeze(1)
             old = torch.from_numpy(b.logp[i]).float()
@@ -82,8 +87,8 @@ def update(net: ActorCritic, bc: ActorCritic, opt, b: Batch, cfg: PPOConfig, ent
             with torch.no_grad():
                 zb, _ = bc(X, A, M)
             kl_bc = (p * (lp_all - masked_log_softmax(zb, M))).sum(1).mean()
-            loss = pl + cfg.vf_coef * vl - ent_coef * ent + kl_bc_coef * kl_bc
-            opt.zero_grad()
+            loss = cfg.vf_coef * vl if value_only else pl + cfg.vf_coef * vl - ent_coef * ent + kl_bc_coef * kl_bc
+            opt.zero_grad(set_to_none=True)
             loss.backward()
             nn.utils.clip_grad_norm_(net.parameters(), cfg.max_grad_norm)
             opt.step()
@@ -96,4 +101,5 @@ def update(net: ActorCritic, bc: ActorCritic, opt, b: Batch, cfg: PPOConfig, ent
     out = {k: float(np.mean(v)) for k, v in acc.items()}
     out["explained_variance"] = explained_variance(b.value, b.ret)
     out["samples"] = len(b)
+    out["phase"] = "value_warmup" if value_only else "ppo"
     return out
