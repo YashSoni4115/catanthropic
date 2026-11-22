@@ -23,6 +23,17 @@
 | value_function (peeking) vs 3 random | 125 | 0.998 | [0.994, 1.000] | [0.989, 1.000] | 1.00 | 10.03 | 1/1/1/.992 | 89.5 | 0 | 34.8 | 14.4 s |
 | alpha_beta (peeking) vs 3 random | 125 | 0.998 | [0.994, 1.000] | [0.989, 1.000] | 1.00 | 10.03 | 1/1/.992/1 | 85.6 | 0 | 1.67 | 299 s |
 | alpha_beta (peeking) vs 3 value_function (peeking) | 125 | 0.330 | [0.292, 0.368] | [0.290, 0.372] | 0.83 | 7.28 | .432/.240/.336/.312 | 89.2 | 0 | 0.91 | 549 s |
+| phi_greedy vs 3 random | 125 | 0.988 | [0.978, 0.996] | [0.974, 0.994] | 0.97 | 10.09 | .984/.992/.984/.992 | 137.4 | 0 | 5.09 | 98 s |
+| phi_greedy vs 3 weighted_random | 125 | 0.934 | [0.910, 0.956] | [0.909, 0.953] | 1.17 | 9.93 | .928/.944/.952/.912 | 135.4 | 0 | 4.46 | 112 s |
+| phi_greedy vs 3 value_function (peeking) | 125 | 0.094 | [0.072, 0.118] | [0.071, 0.123] | 0.85 | 5.95 | .096/.072/.120/.088 | 96.8 | 0 | 4.24 | 118 s |
+| value_function (peeking) vs 3 phi_greedy | 125 | 0.548 | [0.502, 0.592] | [0.504, 0.591] | 1.09 | 8.65 | .552/.576/.592/.472 | 109.9 | 0 | 1.71 | 293 s |
+
+phi_greedy = one-ply expectimax on Φ `phi_v1_pilot:hgb_A_nobelief:88ddfea18f7a` over one belief determinization per decision (non-peeking). These four runs were made without `--keep-awake` (under `caffeinate`).
+
+**Milestone gates (phi_greedy):**
+- M1 ≥ 90% vs random: **PASS** (0.988, CI [0.978, 0.996]).
+- M2 ≥ 60% vs weighted_random: **PASS** (0.934, CI [0.910, 0.956]).
+- M3 clustered CI lower bound > 25% vs value_function: **FAIL** (0.094, CI [0.072, 0.118]; pooled phi_greedy vs 1 value_function: 0.151, CI [0.136, 0.166]).
 
 ## Opponents, pooled per agent (clustered)
 
@@ -32,6 +43,7 @@
 | value_function vs 3 random | random | 0.001 | [0.000, 0.002] | 0.99 |
 | alpha_beta vs 3 random | random | 0.001 | [0.000, 0.002] | 1.00 |
 | alpha_beta vs 3 value_function | value_function | 0.223 | [0.211, 0.236] | 0.35 |
+| value_function vs 3 phi_greedy | phi_greedy | 0.151 | [0.136, 0.166] | 0.70 |
 
 ## Reading the design effect
 

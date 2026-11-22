@@ -21,22 +21,31 @@ class AgentSpec:
     name: str
     factory: Callable  # color -> seat agent
     peeking: bool = False
+    needs_belief: bool = False  # the env must run a BeliefTracker for this seat (callback uses env.determinize)
 
 
 REGISTRY: Dict[str, AgentSpec] = {}
 
 
-def register(name: str, factory: Callable, peeking: bool = False) -> None:
+def register(name: str, factory: Callable, peeking: bool = False, needs_belief: bool = False) -> None:
     """Register our own agent. ``factory(color)`` returns a callback ``(env, color) -> index``
     (or a catanatron Player). With workers > 1, register at import time of a module the
     workers also import, or pass the agent as "package.module:factory"."""
-    REGISTRY[name] = AgentSpec(name, factory, peeking)
+    REGISTRY[name] = AgentSpec(name, factory, peeking, needs_belief)
 
 
 register("random", RandomPlayer)
 register("weighted_random", WeightedRandomPlayer)
 register("value_function", ValueFunctionPlayer, peeking=True)
 register("alpha_beta", AlphaBetaPlayer, peeking=True)
+
+
+def _phi_greedy(color):
+    from catan_rl.agents.phi_greedy import PhiGreedyAgent
+    return PhiGreedyAgent(color)
+
+
+register("phi_greedy", _phi_greedy, needs_belief=True)
 
 
 def get(name: str) -> AgentSpec:

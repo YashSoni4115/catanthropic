@@ -5,6 +5,7 @@
 | Fork location | `~/Desktop/catanatron-fork` (local git repo, branch `rng-streams`) |
 | Upstream | https://github.com/bcollazo/catanatron |
 | Base commit | `ecf931181b9a65bb4116a2153fb78c16f1438e00` (`main`, 2026-09-08, v3.3.0) |
+| Pinned fork commit | `4732786` (`rng-streams` HEAD; working tree clean). All `catan_rl` results (baselines, winprob, Φ, phi_greedy) were produced on this commit |
 | License | **GPL-3.0-or-later**. Upstream `LICENSE` is kept unchanged in the fork. Code that imports or modifies the fork is subject to GPL-3.0 when distributed |
 | Python | ≥ 3.11. Installed editable into `catanthropic/.venv-rl` (Python 3.12): `pip install -e "~/Desktop/catanatron-fork[dev,gym,web]"`. The gym and web extras are only needed to run upstream's test suite; we don't use `catanatron_gym` |
 

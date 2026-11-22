@@ -38,9 +38,11 @@ def play_one(job) -> dict:
     order = turn_order(seed)
     slot_of = {order[(s + rot) % 4]: s for s in range(4)}  # color -> lineup slot
     random.seed(seed * 4 + rot)  # in case a bot draws from the global `random` module
-    seat_agents = {c: A.get(lineup[slot_of[c]]).factory(c) for c in COLORS}
+    specs = {c: A.get(lineup[slot_of[c]]) for c in COLORS}
+    seat_agents = {c: s.factory(c) for c, s in specs.items()}
     t = time.perf_counter()
-    env = CatanEnv(record_events=False).reset(seed, seat_agents)
+    track = [c for c, s in specs.items() if s.needs_belief]
+    env = CatanEnv(track_viewers=track, record_events=False).reset(seed, seat_agents)
     env.play()
     st = env.game.state
     assert list(st.colors) == order, "turn order drifted from seats stream"

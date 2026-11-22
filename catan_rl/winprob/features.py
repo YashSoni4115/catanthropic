@@ -68,7 +68,8 @@ def _belief_block(pmf_cat: Dict[Tuple, float], samples: List[Tuple]) -> List[flo
     return Ei + Pi + Ej + Pj + Ai + Aj
 
 
-def engineered(game, viewer, tracker, dev_belief, seed) -> np.ndarray:
+def _public(game, viewer):
+    """(head, tail, obs, players, v): every block-A feature except opponent beliefs, from observed_state only."""
     v = getattr(viewer, "value", viewer)
     st = game.state
     obs = observed_state(st, next(c for c in st.colors if c.value == v))
@@ -102,6 +103,24 @@ def engineered(game, viewer, tracker, dev_belief, seed) -> np.ndarray:
         x += income[p] + [sum(income[p]), d["num_resources"]] + [d["played_dev"][c] for c in PLAYED] + [d["num_dev_cards"]]
     me = obs["players"][v]
     x += [me["hand"][r] for r in RESOURCES] + [me["dev_cards"][c] for c in DEVELOPMENT_CARDS]
+    tail = list(obs["bank"]) + [obs["dev_deck_size"], obs["turn"],
+                                float(not obs["is_initial_build_phase"] and not me["has_rolled"] and obs["current_player"] == v),
+                                sum(blocked.values()), blocked[v]]
+    return x, tail, obs, players, v
+
+
+def names_public() -> List[str]:
+    return [n for n in names_a() if not (n[0] == "o" and n[1].isdigit())]
+
+
+def public_features(game, viewer) -> np.ndarray:
+    """Block A without opponent beliefs (columns of names_public()); no tracker needed."""
+    head, tail, *_ = _public(game, viewer)
+    return np.asarray(head + tail, dtype=np.float32)
+
+
+def engineered(game, viewer, tracker, dev_belief, seed) -> np.ndarray:
+    x, tail, obs, players, v = _public(game, viewer)
     # beliefs: independent tracker marginals + constrained joint (N_JOINT samples of the determinizer's hand sampler)
     opps = players[1:]
     pmfs = {o: tracker.players[o].pmf for o in opps}
@@ -112,9 +131,7 @@ def engineered(game, viewer, tracker, dev_belief, seed) -> np.ndarray:
         x += _belief_block({_to_cat(h): w for h, w in pmfs[o].items()}, [_to_cat(dr[o]) for dr in draws])
         x += [dev_belief.p_at_least_one(o, "VICTORY_POINT"), dev_belief.p_at_least_one(o, "KNIGHT", old_only=True),
               dev_belief.expected_count(o, "VICTORY_POINT")]
-    x += list(obs["bank"]) + [obs["dev_deck_size"], obs["turn"],
-                              float(not obs["is_initial_build_phase"] and not me["has_rolled"] and obs["current_player"] == v),
-                              sum(blocked.values()), blocked[v]]
+    x += tail
     return np.asarray(x, dtype=np.float32)
 
 
