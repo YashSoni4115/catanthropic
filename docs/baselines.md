@@ -27,6 +27,12 @@
 | phi_greedy vs 3 weighted_random | 125 | 0.934 | [0.910, 0.956] | [0.909, 0.953] | 1.17 | 9.93 | .928/.944/.952/.912 | 135.4 | 0 | 4.46 | 112 s |
 | phi_greedy vs 3 value_function (peeking) | 125 | 0.094 | [0.072, 0.118] | [0.071, 0.123] | 0.85 | 5.95 | .096/.072/.120/.088 | 96.8 | 0 | 4.24 | 118 s |
 | value_function (peeking) vs 3 phi_greedy | 125 | 0.548 | [0.502, 0.592] | [0.504, 0.591] | 1.09 | 8.65 | .552/.576/.592/.472 | 109.9 | 0 | 1.71 | 293 s |
+| bc_policy vs 3 random | 125 | 1.000 | [1.000, 1.000] | [0.992, 1.000] | n/a | 10.04 | 1/1/1/1 | 89.7 | 0 | 10.3 | 49 s |
+| bc_policy vs 3 weighted_random | 125 | 0.974 | [0.958, 0.988] | [0.956, 0.985] | 1.10 | 9.96 | .976/.976/.952/.992 | 91.9 | 0 | 10.1 | 49 s |
+| bc_policy vs 3 value_function (peeking) | 125 | 0.238 | [0.206, 0.270] | [0.203, 0.277] | 0.74 | 6.78 | .328/.216/.208/.200 | 89.2 | 0 | 4.25 | 118 s |
+| value_function (peeking) vs 3 bc_policy | 125 | 0.242 | [0.214, 0.270] | [0.207, 0.281] | 0.56 | 6.94 | .232/.256/.264/.216 | 92.0 | 0 | 4.23 | 118 s |
+
+bc_policy = `bc_v1` (argmax, non-peeking, 116k params), behavior-cloned from value_function on 3000 games (seeds 200000–202999). Run with `--keep-awake`. **Gate (bc_policy vs 3 value_function, CI containing or above 0.20): PASS** (0.238, CI [0.206, 0.270]).
 
 phi_greedy = one-ply expectimax on Φ `phi_v1_pilot:hgb_A_nobelief:88ddfea18f7a` over one belief determinization per decision (non-peeking). These four runs were made without `--keep-awake` (under `caffeinate`).
 
@@ -44,6 +50,7 @@ phi_greedy = one-ply expectimax on Φ `phi_v1_pilot:hgb_A_nobelief:88ddfea18f7a`
 | alpha_beta vs 3 random | random | 0.001 | [0.000, 0.002] | 1.00 |
 | alpha_beta vs 3 value_function | value_function | 0.223 | [0.211, 0.236] | 0.35 |
 | value_function vs 3 phi_greedy | phi_greedy | 0.151 | [0.136, 0.166] | 0.70 |
+| value_function vs 3 bc_policy | bc_policy | 0.253 | [0.243, 0.262] | 0.18 |
 
 ## Reading the design effect
 

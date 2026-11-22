@@ -48,6 +48,14 @@ def _phi_greedy(color):
 register("phi_greedy", _phi_greedy, needs_belief=True)
 
 
+def _bc_policy(color):
+    from catan_rl.policy.agent import PolicyAgent
+    return PolicyAgent(color)
+
+
+register("bc_policy", _bc_policy)
+
+
 def get(name: str) -> AgentSpec:
     if name not in REGISTRY and ":" in name:
         mod, attr = name.split(":", 1)
