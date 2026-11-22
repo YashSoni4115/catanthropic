@@ -57,6 +57,9 @@ register("bc_policy", _bc_policy)
 
 
 def get(name: str) -> AgentSpec:
+    if name not in REGISTRY and name.startswith("ppo:"):  # ppo:<checkpoint path>, argmax, non-peeking
+        path = name[4:]
+        register(name, lambda c: __import__("catan_rl.rl.agent", fromlist=["x"]).PPOAgent(c, path))
     if name not in REGISTRY and ":" in name:
         mod, attr = name.split(":", 1)
         register(name, getattr(importlib.import_module(mod), attr))

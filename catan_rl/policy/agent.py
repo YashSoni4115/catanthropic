@@ -48,6 +48,11 @@ def load_default(path: str = DEFAULT_PATH) -> PolicyNet:
     return _CACHE[path]
 
 
+def sample_key(game, viewer, salt=0) -> str:
+    """Sampling RNG key: (game seed, viewer, decision index = actions so far). Distinct games never share draws."""
+    return f"sample:{salt}:{game.seed}:{getattr(viewer, 'value', viewer)}:{len(game.state.action_records)}"
+
+
 class PolicyAgent:
     def __init__(self, viewer, net: PolicyNet = None, mode: str = "argmax", seed: int = 0, path: str = DEFAULT_PATH):
         assert mode in ("argmax", "sample")
@@ -66,7 +71,7 @@ class PolicyAgent:
         else:
             p = np.exp(z - z.max())
             p /= p.sum()
-            rng = random.Random(f"bc:{self.seed}:{game.state.num_turns}:{len(game.state.action_records)}")
+            rng = random.Random(sample_key(game, self.viewer, self.seed))
             i = int(np.searchsorted(np.cumsum(p), rng.random() * p.sum(), side="right").clip(0, len(p) - 1))
         return to_index(acts[i])
 
