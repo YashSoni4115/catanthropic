@@ -99,6 +99,30 @@ def test_value_warmup_freezes_policy(net):
     assert st["phase"] == "ppo" and any(not np.array_equal(p1[k], p2[k]) for k in p1 if k.startswith("pi."))
 
 
+def test_init_from_and_final_eval(tmp_path):
+    import json
+    from catan_rl.rl import final_eval as FE
+    from catan_rl.rl.net import ActorCritic
+    from catan_rl.rl.train import main
+    _run(str(tmp_path / "a"), updates=1, warmup=0)
+    src = tmp_path / "a" / "final.pt"
+    init = ActorCritic.load(str(src)).params()
+    bc = ActorCritic.from_bc(seed=0).params()
+    assert any(not np.array_equal(init[k], bc[k]) for k in init if k.startswith("pi."))
+    # --init-from with 0 updates: saved update-0 checkpoint must equal the source exactly
+    main(["--out", str(tmp_path / "b"), "--updates", "0", "--workers", "1", "--eval-every", "0", "--init-from", str(src)])
+    got = ActorCritic.load(str(tmp_path / "b" / "ckpt_0000.pt")).params()
+    assert all(np.array_equal(init[k], got[k]) for k in init)
+    assert json.load(open(tmp_path / "b" / "config.json"))["init_from"] == str(src)
+    out = FE.evaluate([str(src)], workers=2, seeds={"vs_vf": 1, "vs_wr": 1, "vs_bc": 1})
+    assert set(out) == {"bc", str(src)}
+    for c in out:
+        for k in ("vs_vf", "vs_wr", "vs_bc"):
+            m = out[c][k]
+            assert m["games"] == 4 and m["seeds"] == [5000, 5000] and 0 <= m["p"] <= 1
+    assert out["bc"]["vs_vf"]["diff_vs_bc"]["mean"] == 0
+
+
 def test_sampling_key_distinct_across_games():
     from catan_rl.policy.agent import sample_key
     from catan_rl.tests.test_policy import _play

@@ -61,6 +61,8 @@ def parse(argv=None):
     ap.add_argument("--eval-workers", type=int, default=8)
     ap.add_argument("--belief-features", action="store_true")
     ap.add_argument("--bc", default=BC_PATH)
+    ap.add_argument("--init-from", default=None, help="start from a PPO checkpoint (fresh optimizer; KL anchor stays --bc; "
+                                                       "update counter and schedules restart)")
     return ap.parse_args(argv)
 
 
@@ -80,6 +82,8 @@ def main(argv=None) -> dict:
     torch.manual_seed(a.seed)
     rng = np.random.default_rng(a.seed)
     net, bc = ActorCritic.from_bc(a.bc, a.seed), ActorCritic.from_bc(a.bc, a.seed)
+    if a.init_from:
+        net = ActorCritic.load(a.init_from)
     for p in bc.parameters():
         p.requires_grad_(False)
     if a.value_lr is None:
