@@ -52,6 +52,38 @@ phi_greedy = one-ply expectimax on Φ `phi_v1_pilot:hgb_A_nobelief:88ddfea18f7a`
 | value_function vs 3 phi_greedy | phi_greedy | 0.151 | [0.136, 0.166] | 0.70 |
 | value_function vs 3 bc_policy | bc_policy | 0.253 | [0.243, 0.262] | 0.18 |
 
+## PPO final evaluation (fresh seeds)
+
+`python -m catan_rl.rl.final_eval --ckpts bc,runs/rl/A_noshape/final.pt,runs/rl/A_noshape/ckpt_0300.pt,runs/rl/B_shape/final.pt`
+
+- **Mode:** argmax, non-peeking.
+- **Seeds:** the same for every checkpoint and fresh: training-time evals used seeds 0–62.
+  - vs value_function: 5000–5249 × 4 rotations = 1,000 games.
+  - vs weighted_random and vs bc_policy: 5000–5124 × 4 = 500 games.
+- **CIs:** seed-clustered 95%. "Diff vs bc" is the paired per-seed difference on the same seeds.
+- **Runs:** A = `--shaping off`, B = `--shaping on` (Φ `phi_v1_pilot:hgb_A_nobelief:88ddfea18f7a`). Both: seed 0, 313 updates × 64 games, `--value-warmup 15`, lr 1e-4, code at 72636c6.
+
+| Checkpoint | Opponents | Win rate | 95% CI | Diff vs bc | 95% CI |
+|---|---|---|---|---|---|
+| bc | 3 value_function | 0.255 | [0.233, 0.277] | — | — |
+| A final (upd 313) | 3 value_function | 0.274 | [0.252, 0.296] | +0.019 | [−0.008, +0.045] |
+| A @300 | 3 value_function | 0.284 | [0.261, 0.308] | +0.029 | [+0.002, +0.055] |
+| B final (upd 313) | 3 value_function | **0.294** | **[0.271, 0.318]** | **+0.039** | [+0.012, +0.066] |
+| bc | 3 weighted_random | 0.986 | [0.974, 0.996] | — | — |
+| A final | 3 weighted_random | 0.984 | [0.972, 0.994] | −0.002 | [−0.014, +0.010] |
+| A @300 | 3 weighted_random | 0.988 | [0.978, 0.996] | +0.002 | [−0.008, +0.012] |
+| B final | 3 weighted_random | 0.978 | [0.964, 0.990] | −0.008 | [−0.022, +0.006] |
+| bc | 3 bc_policy (mirror) | 0.250 | [0.250, 0.250] | — | — |
+| A final | 3 bc_policy | 0.288 | [0.260, 0.316] | +0.038 | [+0.010, +0.066] |
+| A @300 | 3 bc_policy | 0.302 | [0.274, 0.330] | +0.052 | [+0.024, +0.080] |
+| B final | 3 bc_policy | 0.290 | [0.256, 0.324] | +0.040 | [+0.006, +0.074] |
+
+**M3 (clustered CI lower bound > 25% vs 3 value_function): PASSED by B final** (0.294, CI lower bound 0.271, seeds 5000–5249).
+- Caveat: B final is the best of three PPO checkpoints, and it was picked on these same seeds, so the estimate is slightly optimistic.
+- A confirmation on fresh seeds (e.g. 6000–6249) is still pending.
+
+B final is frozen as `checkpoints/ppo_B313.pt` (git-ignored), sha256 `5bc1f8c7d7c6de8c9af358830905b690a3fa26cc6a5fa71c691d00f56a967b7a`, identical to `runs/rl/B_shape/final.pt`.
+
 ## Reading the design effect
 
 - **deff is at or below 1 here, not above.** Rotation puts each slot in every turn-order position once per seed. This stratifies out the seat and board advantage, so per-seed win counts vary less than independent games would.
