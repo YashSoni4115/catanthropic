@@ -129,7 +129,7 @@ class CatanEnv:
         record = self.game.play_tick(decide_fn=lambda *_: action)
         after = ea.hands(self.game.state)
         pairs = ea.public_events(record, before, after)
-        for v in (self.track_viewers or self.events.keys()):
+        for v in sorted(self.track_viewers or self.events.keys()):  # fixed order, not hash order
             for e in ea.events_for(v, pairs, after):
                 if self.record_events:
                     self.events[v].append(e)

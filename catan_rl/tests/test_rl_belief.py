@@ -134,7 +134,7 @@ def test_old_checkpoint_loads_and_plays():
         pytest.skip("no B313 checkpoint")
     net = ActorCritic.load(path)
     assert net.db == 0 and not needs_belief(path)
-    res = run_match([f"ppo:{path}", "random", "random", "random"], 1, 0, 1)
+    res = run_match([f"ppo:{path}", "random", "random", "random"], 1, 300, 1)
     assert len(res) == 4
 
 
@@ -143,8 +143,26 @@ def test_belief_match_plays(src, tmp_path):
     net = ActorCritic.load(src).with_belief(DIM)
     path = str(tmp_path / "b.pt")
     net.save(path, {})
-    res = run_match([f"ppo:{path}", "random", "random", "random"], 1, 0, 1)
+    res = run_match([f"ppo:{path}", "random", "random", "random"], 1, 300, 1)
     assert len(res) == 4
+
+
+def _run_belief(out, src):
+    from catan_rl.rl.train import main
+    return main(["--out", out, "--belief-features", "--init-from", src, "--updates", "1", "--games-per-update", "2",
+                 "--workers", "2", "--eval-every", "0", "--minibatch", "64", "--epochs", "1", "--value-warmup", "0",
+                 "--shaping", "on", "--lr", "2e-4", "--value-lr", "1e-3"])
+
+
+def test_belief_reproducible_across_processes(src, tmp_path):
+    import subprocess
+    import sys
+    code = ("import sys; from catan_rl.tests.test_rl_belief import _run_belief; "
+            "print(_run_belief(sys.argv[1], sys.argv[2])['digest'])")
+    outs = [subprocess.run([sys.executable, "-c", code, str(tmp_path / f"r{h}"), src], capture_output=True, text=True,
+                           check=True, env={**os.environ, "PYTHONHASHSEED": str(h)}).stdout.strip().splitlines()[-1]
+            for h in (1, 2, 3)]
+    assert outs[0] == outs[1] == outs[2] and len(outs[0].split()[-1]) == 64
 
 
 def test_smoke_train_belief_warm_start(src, tmp_path):
