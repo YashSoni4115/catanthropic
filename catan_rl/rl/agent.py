@@ -22,10 +22,21 @@ class NetSeat:
     def __init__(self, net: ActorCritic, color, mode="sample", record=None, phi=None, salt="ppo"):
         self.net, self.viewer, self.mode, self.record, self.phi, self.salt = net, getattr(color, "value", color), mode, record, phi, salt
 
+    def features(self, env, color, acts):
+        """(state x, action features A). With a belief net, A gets the viewer's own BeliefTracker
+        features (public events only; env must track this viewer) appended as extra columns."""
+        game = env.game
+        x, A = public_features(game, color), action_features(game, color, acts)
+        if self.net.db:
+            from catan_rl.rl.belief_features import belief_action_features
+            B = belief_action_features(game, color, env.belief(self.viewer), acts)
+            A = np.concatenate([np.asarray(A, np.float32), B], 1)
+        return x, A
+
     def __call__(self, env, color) -> int:
         game = env.game
         acts = legal_actions(game)
-        x, A = public_features(game, color), action_features(game, color, acts)
+        x, A = self.features(env, color, acts)
         with torch.no_grad():
             X, AA, M = prep(self.net.norm, [x], [A])
             z, v = self.net(X, AA, M)
@@ -44,9 +55,18 @@ class NetSeat:
 _NETS = {}
 
 
+def load_net(path: str) -> ActorCritic:
+    if path not in _NETS:
+        _NETS[path] = ActorCritic.load(path)
+    return _NETS[path]
+
+
+def needs_belief(path: str) -> bool:
+    """True if the checkpoint was trained with belief features (the env must track that seat)."""
+    return load_net(path).belief_features
+
+
 class PPOAgent(NetSeat):
     def __init__(self, color, path: str, mode: str = "argmax"):
         torch.set_num_threads(1)
-        if path not in _NETS:
-            _NETS[path] = ActorCritic.load(path)
-        super().__init__(_NETS[path], color, mode=mode)
+        super().__init__(load_net(path), color, mode=mode)

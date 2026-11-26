@@ -44,6 +44,14 @@ def _agent(ckpt, color):
     return PPOAgent(color, ckpt)
 
 
+def _track(ckpt, me):
+    """Belief checkpoints need a BeliefTracker for their own seat."""
+    if ckpt == "bc":
+        return []
+    from catan_rl.rl.agent import needs_belief
+    return [me.value] if needs_belief(ckpt) else []
+
+
 def _setup(seed):
     order = turn_order(seed)
     return order[seed % 4]  # learner's turn position rotates with the seed
@@ -63,7 +71,7 @@ def _profile_game(job):
     me = _setup(seed)
     agents = {c: _agent(ckpt, c) if c == me else ValueFunctionPlayer(c) for c in COLORS}
     random.seed(seed)
-    env = CatanEnv(record_events=False).reset(seed, agents)
+    env = CatanEnv(track_viewers=_track(ckpt, me), record_events=False).reset(seed, agents)
     env.play()
     st = env.game.state
     acts = Counter()
@@ -98,11 +106,9 @@ def profile(ckpts, games, seed_base, workers=8) -> dict:
 def _kl_game(job):
     import torch
     from catan_rl.env.actions import to_index
-    from catan_rl.policy.action_features import action_features
     from catan_rl.policy.dataset import legal_actions
     from catan_rl.rl.agent import PPOAgent
     from catan_rl.rl.net import ActorCritic, prep
-    from catan_rl.winprob.features import public_features
     ckpt, seed = job
     torch.set_num_threads(1)
     me = _setup(seed)
@@ -113,10 +119,11 @@ def _kl_game(job):
     def seat(env, color):
         g = env.game
         acts = legal_actions(g)
-        X, A, M = prep(pol.net.norm, [public_features(g, color)], [action_features(g, color, acts)])
+        x, Af = pol.features(env, color, acts)
+        X, A, M = prep(pol.net.norm, [x], [Af])
         with torch.no_grad():
             z = pol.net(X, A, M)[0][0]
-            zb = bc(X, A, M)[0][0]
+            zb = bc(X, A[..., : bc.da], M)[0][0]
         i, j = int(z.argmax()), int(zb.argmax())
         rows.append({"differs": i != j, "bc_logp": float(torch.log_softmax(zb, -1)[i]),
                      "group": group(acts[i].action_type, g.state.is_initial_build_phase)})
@@ -124,7 +131,7 @@ def _kl_game(job):
 
     agents = {c: seat if c == me else ValueFunctionPlayer(c) for c in COLORS}
     random.seed(seed)
-    CatanEnv(record_events=False).reset(seed, agents).play()
+    CatanEnv(track_viewers=_track(ckpt, me), record_events=False).reset(seed, agents).play()
     return rows
 
 

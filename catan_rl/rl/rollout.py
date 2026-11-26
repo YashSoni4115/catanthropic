@@ -52,29 +52,32 @@ def rewards(phis: np.ndarray, outcome: float, shaping: bool, coef: float = 1.0, 
     return r
 
 
-def _net(key, params, ds, da, norm):
+def _net(key, params, ds, da, norm, db=0):
     net = _W.get(key)
-    if net is None:
-        net = _W[key] = ActorCritic(ds, da, norm)
+    if net is None or net.db != db:
+        net = _W[key] = ActorCritic(ds, da, norm, db)
     net.load_params(params)
     return net
 
 
 def play_game(job: dict) -> dict:
-    """job: seed, seats, category, params, past {j: params}, dims (ds, da, norm), shaping, coef, gamma, phi_version."""
+    """job: seed, seats, category, params, past {j: params}, dims (ds, da, norm[, db]), shaping, coef, gamma, phi_version.
+    db > 0: learner and past nets use belief features; their seats get the viewer's own BeliefTracker."""
     t0 = time.perf_counter()
-    ds, da, norm = job["dims"]
+    ds, da, norm, *rest = job["dims"]
+    db = int(rest[0]) if rest else 0
     phi = None
     if job["shaping"]:
         from catan_rl.winprob.phi import load_default
         phi = load_default()
         assert phi.version == job["phi_version"], f"Φ changed mid-run: {phi.version} != {job['phi_version']}"
-    learner = _net("learner", job["params"], ds, da, norm)
-    recs, agents = {}, {}
+    learner = _net("learner", job["params"], ds, da, norm, db)
+    recs, agents, track = {}, {}, []
     for c, s in zip(COLORS, job["seats"]):
         if s == "learner":
             recs[c] = []
             agents[c] = NetSeat(learner, c, "sample", record=recs[c], phi=phi)
+            track += [c.value] if db else []
         elif s == "bc":
             from catan_rl.policy.agent import PolicyAgent
             agents[c] = PolicyAgent(c)
@@ -82,9 +85,10 @@ def play_game(job: dict) -> dict:
             agents[c] = ValueFunctionPlayer(c)
         else:
             j = int(s.split(":")[1])
-            agents[c] = NetSeat(_net(f"past{j}", job["past"][j], ds, da, norm), c, "sample", salt=f"past{j}")
+            agents[c] = NetSeat(_net(f"past{j}", job["past"][j], ds, da, norm, db), c, "sample", salt=f"past{j}")
+            track += [c.value] if db else []
     random.seed(job["seed"])
-    env = CatanEnv(record_events=False).reset(job["seed"], agents)
+    env = CatanEnv(track_viewers=track, record_events=False).reset(job["seed"], agents)
     env.play()
     w = env.winner
     trajs = []

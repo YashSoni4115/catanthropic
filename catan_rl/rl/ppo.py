@@ -85,7 +85,7 @@ def update(net: ActorCritic, bc: ActorCritic, opt, b: Batch, cfg: PPOConfig, ent
             p = lp_all.exp() * M
             ent = -(p * lp_all).sum(1).mean()
             with torch.no_grad():
-                zb, _ = bc(X, A, M)
+                zb, _ = bc(X, A[..., : bc.da + bc.db], M)  # BC anchor sees only its own columns
             kl_bc = (p * (lp_all - masked_log_softmax(zb, M))).sum(1).mean()
             loss = cfg.vf_coef * vl if value_only else pl + cfg.vf_coef * vl - ent_coef * ent + kl_bc_coef * kl_bc
             opt.zero_grad(set_to_none=True)

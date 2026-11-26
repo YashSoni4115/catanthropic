@@ -76,14 +76,16 @@ def _git(path):
 
 def main(argv=None) -> dict:
     a = parse(argv)
-    if a.belief_features:
-        raise SystemExit("--belief-features: extraction exists (catan_rl/rl/belief_features.py); training with it is not enabled yet")
     os.makedirs(a.out, exist_ok=True)
     torch.manual_seed(a.seed)
     rng = np.random.default_rng(a.seed)
     net, bc = ActorCritic.from_bc(a.bc, a.seed), ActorCritic.from_bc(a.bc, a.seed)
     if a.init_from:
         net = ActorCritic.load(a.init_from)
+    if a.belief_features and not net.belief_features:  # zero-init new inputs: update-0 policy == source
+        from catan_rl.rl.belief_features import DIM
+        net = net.with_belief(DIM)
+    assert net.belief_features == a.belief_features, "--init-from belief checkpoint needs --belief-features"
     for p in bc.parameters():
         p.requires_grad_(False)
     if a.value_lr is None:
@@ -96,7 +98,7 @@ def main(argv=None) -> dict:
     config = {**vars(a), "phi_version": phi_version, "git": _git("."),
               "fork_git": _git(os.path.expanduser("~/Desktop/catanatron-fork")), "train_seed_base": TRAIN_SEED_BASE}
     json.dump(config, open(f"{a.out}/config.json", "w"), indent=1)
-    dims = (net.ds, net.da, net.norm)
+    dims = (net.ds, net.da, net.norm, net.db) if net.db else (net.ds, net.da, net.norm)
     past = [net.params()]  # league checkpoints; index 0 = BC init
     log = open(f"{a.out}/log.jsonl", "a")
     ecsv = f"{a.out}/eval.csv"
