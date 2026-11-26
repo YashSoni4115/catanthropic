@@ -89,6 +89,81 @@ B2 (continuation from B313, 600 updates, shaping on, Φ `phi_v1_pilot:hgb_A_nobe
 - parameter digest (printed by train.py as "final params sha256"): `312d250afebf53c7daf0df7cfb6fa0215da5c85e0ccd24ce86c2c99e96906426`. `ckpt_0600.pt` has the same parameter digest but a different file sha, because it stores different metadata.
 - training eval (seeds 0–62, which are not fresh): 0.274 at update 0, 0.437 [0.373, 0.500] at update 600. Fresh-seed validation uses seeds 6000–6249.
 
+### B2 fresh-seed validation (Spec V0)
+
+Seeds 6000-6249 (vs_vf) and 6000-6124 (others), x4 rotations, argmax, non-peeking. Outputs: `runs/rl/B2_val/results.json`, `runs/rl/B2_val_ab/results.json`. alpha_beta and value_function are peeking.
+
+| Checkpoint | Opponents | Win rate | 95% CI | Diff vs bc | 95% CI |
+|---|---|---|---|---|---|
+| bc | 3 value_function | 0.247 | [0.226, 0.269] | — | — |
+| B313 | 3 value_function | 0.273 | [0.248, 0.298] | +0.026 | [−0.006, +0.058] |
+| B2 | 3 value_function | **0.400** | **[0.368, 0.433]** | +0.153 | [+0.115, +0.192] |
+| B313 | 3 bc_policy | 0.284 | [0.250, 0.320] | +0.034 | [+0.000, +0.070] |
+| B2 | 3 bc_policy | **0.406** | **[0.362, 0.452]** | +0.156 | [+0.112, +0.202] |
+| bc | 3 B313 | 0.220 | [0.190, 0.250] | — | — |
+| B2 | 3 B313 | **0.384** | **[0.344, 0.424]** | +0.164 | [+0.114, +0.214] |
+| bc | 3 weighted_random | 0.982 | [0.970, 0.992] | — | — |
+| B313 | 3 weighted_random | 0.990 | [0.980, 0.998] | +0.008 | [−0.004, +0.020] |
+| B2 | 3 weighted_random | 0.992 | [0.984, 0.998] | +0.010 | [−0.002, +0.024] |
+| bc | 3 alpha_beta | 0.192 | [0.164, 0.220] | — | — |
+| B2 | 3 alpha_beta | **0.366** | **[0.324, 0.408]** | +0.174 | [+0.124, +0.224] |
+
+**V0 gate: REAL IMPROVEMENT, PASS.** B2's CI lower bound is above 0.25 vs alpha_beta (0.324), vs bc_policy (0.362) and vs B313 (0.344). Its value_function CI does not overlap B313's, and there is no regression vs weighted_random.
+- These are fresh seeds, so there is no selection bias.
+- B313's M3 number shrank on fresh seeds, from 0.294 to 0.273 (CI [0.248, 0.298]). Its lower bound is now below 0.25, so M3 for B313 is not confirmed. B2 now carries M3.
+- The odd-profile check is done in Spec V1 below.
+
+### Spec V1: behavior profile, KL to BC (seeds 7000-7099)
+
+100 games each vs 3 value_function, argmax. Outputs: `runs/rl/V1/profile.json`, `runs/rl/V1/kl.json`. These are diagnostics only, so there are no CIs (n=100).
+
+| Ckpt | Win | Mean VP | Turns | Turn-limit | Win-VP share: sett / city / LR / LA / VPcard | Dev buys/game | Dev plays/game | Robber moves/game |
+|---|---|---|---|---|---|---|---|---|
+| bc | 0.25 | 6.77 | 90.4 | 0.00 | .29 / .57 / .13 / .00 / .02 | 0.60 | 0.38 | 3.81 |
+| B313 | 0.31 | 6.90 | 88.5 | 0.00 | .25 / .61 / .13 / .00 / .01 | 0.52 | 0.35 | 3.73 |
+| B2 | 0.37 | 7.85 | 88.1 | 0.00 | .23 / .51 / .12 / .05 / .08 | 2.90 | 1.85 | 4.72 |
+
+KL to BC: B2's argmax differs from BC's on 23.6% of its 5,335 decisions.
+- dev_buy differs on 89%. Mean BC probability of B2's chosen dev_buy action is 0.11, so this is where B2 has drifted most.
+- roll 41%, robber 33%, trade 31%, road 25%, discard 22%.
+- settlement 6%, city 7%, play_dev 8%, end_turn 0.5%.
+
+**V1 gate (odd profile = turn-limit > 2% or VP-source skew): CLEAR.**
+- Turn-limit is 0% for all three checkpoints.
+- B2's VP sources are more diverse than BC's, not skewed: it gained largest army and VP cards and kept cities as the main source.
+- The main learned change is about 5x more dev-card buying (0.6 to 2.9 per game), which turns into largest army and VP cards.
+
+### Reserved seed ranges (new)
+
+- **B3 PPO training:** `--seed 2`, giving game seeds 3,000,000-3,999,999. Formula: train_seed_base + seed x 1e6 + n_games. A and B used seed 0, and B2 used seed 1 (2,000,000+).
+- **B3 fresh validation:** seeds 8000-8249. Never used before.
+
+### B3 (continuation from B2, 600 updates, seed 2) fresh validation, seeds 8000+
+
+Training settings were the same as B2, `--init-from checkpoints/ppo_B2_600.pt`. Training eval on seeds 0-62 (not fresh): 0.437 at update 0, dropped to 0.333 at update 100, recovered to 0.440 by 400, ended at 0.460 at 600. The early dip followed the KL-to-BC pull restarting at full strength (kl_bc 3.4 to 1.7 within 3 updates).
+- `runs/rl/B3_shape/final.pt` file sha256 `a31c55346d2d19c485a5dd9f9def3467340b48bdeae76a2e3dd60f4d22abcf9c`, params sha256 `f15b05701e7b2d495c8562559ffc34c594728112935f126b7ac8d373ccd2a2ab`. Not yet copied to `checkpoints/`.
+
+| Ckpt | Opponents | Win | 95% CI | Diff vs bc | 95% CI |
+|---|---|---|---|---|---|
+| bc | 3 value_function | 0.229 | — | — | — |
+| B2 | 3 value_function | 0.406 | [0.375, 0.436] | +0.177 | [+0.138, +0.217] |
+| B3 | 3 value_function | **0.463** | **[0.432, 0.494]** | +0.234 | [+0.196, +0.272] |
+| B2 | 3 bc_policy | 0.442 | [0.394, 0.490] | +0.192 | [+0.144, +0.240] |
+| B3 | 3 bc_policy | **0.484** | **[0.436, 0.534]** | +0.234 | [+0.186, +0.284] |
+| B2 | 3 B313 | 0.372 | [0.330, 0.414] | +0.158 | [+0.106, +0.212] |
+| B3 | 3 B313 | 0.444 | [0.396, 0.494] | +0.230 | [+0.174, +0.288] |
+| bc | 3 weighted_random | 0.976 | [0.958, 0.992] | — | — |
+| B2 | 3 weighted_random | 0.992 | [0.982, 1.000] | +0.016 | [+0.002, +0.032] |
+| B3 | 3 weighted_random | 0.994 | [0.986, 1.000] | +0.018 | [+0.006, +0.032] |
+| bc | 3 alpha_beta | 0.186 | [0.154, 0.220] | — | — |
+| B3 | 3 alpha_beta | **0.408** | **[0.366, 0.452]** | +0.222 | [+0.168, +0.276] |
+
+bc vs 3 value_function is inferred as 0.229 = B2 0.406 minus B2's paired diff +0.177. The paired diff is exact; the 0.229 is derived, not read directly.
+
+Paired B3 minus B2 vs 3 value_function (`eval.run --compare`, seeds 8000-8249, 1,000 games each, seed-clustered): **+0.057 [+0.020, +0.093]**. Re-running eval.run reproduced the final_eval numbers exactly (0.463 and 0.406), so the evals are deterministic. Outputs: `runs/rl/B3_val`, `runs/rl/B3_val_ab`, `runs/rl/B3_paired`.
+
+**B3 gate: PASS.** The paired diff vs B2 has CI lower bound > 0; the vs_bc lower bound 0.436 and vs_ab lower bound 0.366 are both > 0.25; vs_wr 0.994 is >= 0.95.
+
 ## Reading the design effect
 
 - **deff is at or below 1 here, not above.** Rotation puts each slot in every turn-order position once per seed. This stratifies out the seat and board advantage, so per-seed win counts vary less than independent games would.
