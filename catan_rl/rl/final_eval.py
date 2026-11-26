@@ -19,7 +19,11 @@ import time
 from catan_rl.eval.match import clustered_win_rate, paired_comparison, run_match
 
 SEED_BASE = 5000
-LINEUPS = {"vs_vf": ("value_function", 250), "vs_wr": ("weighted_random", 125), "vs_bc": ("bc_policy", 125)}
+B313 = "checkpoints/ppo_B313.pt"
+# key -> (opponent agent name, default seeds). Opponents fill seats 1-3; the checkpoint is slot 0.
+LINEUPS = {"vs_vf": ("value_function", 250), "vs_ab": ("alpha_beta", 125), "vs_wr": ("weighted_random", 125),
+           "vs_bc": ("bc_policy", 125), "vs_b313": (f"ppo:{os.path.abspath(B313)}", 125),
+           "vs_pg": ("phi_greedy", 125)}
 
 
 def agent_name(ckpt: str) -> str:
@@ -29,8 +33,8 @@ def agent_name(ckpt: str) -> str:
     return f"ppo:{os.path.abspath(ckpt)}"
 
 
-def evaluate(ckpts, workers=8, seeds=None, seed_base=SEED_BASE, which=("vs_vf", "vs_wr", "vs_bc")) -> dict:
-    """seeds: override per-lineup seed counts (tests)."""
+def evaluate(ckpts, workers=8, seeds=None, seed_base=SEED_BASE, which=("vs_vf", "vs_wr", "vs_bc"), on_set=None) -> dict:
+    """seeds: override per-lineup seed counts. on_set(out): called after each opponent set (partial saves)."""
     ckpts = list(ckpts)
     if "bc" not in ckpts:
         ckpts = ["bc"] + ckpts  # reference for the paired difference
@@ -48,6 +52,8 @@ def evaluate(ckpts, workers=8, seeds=None, seed_base=SEED_BASE, which=("vs_vf", 
         for c in ckpts:
             d = paired_comparison(res[c], res["bc"], slot=0)
             out[c][key]["diff_vs_bc"] = {"mean": d["mean_diff"], "ci95": d["ci95"], "n_seeds": d["n_seeds"]}
+        if on_set:
+            on_set(out)
     return out
 
 
@@ -66,13 +72,41 @@ def main(argv=None):
     ap.add_argument("--ckpts", required=True, help="comma-separated: 'bc' or checkpoint paths")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--out", default="runs/rl/final_eval")
-    ap.add_argument("--only", default="vs_vf,vs_wr,vs_bc")
+    ap.add_argument("--only", default="vs_vf,vs_wr,vs_bc", help=f"comma-separated subset of {','.join(LINEUPS)}")
+    ap.add_argument("--seed-base", type=int, default=SEED_BASE)
+    ap.add_argument("--seeds", default="", help="per-set overrides, e.g. vs_vf=250,vs_ab=125")
+    ap.add_argument("--estimate", action="store_true", help="play 1 seed per set/checkpoint and extrapolate wall-clock")
     a = ap.parse_args(argv)
-    out = evaluate(a.ckpts.split(","), a.workers, which=tuple(a.only.split(",")))
+    which = tuple(a.only.split(","))
+    ck = a.ckpts.split(",")
+    seeds = {k: int(v) for k, v in (s.split("=") for s in a.seeds.split(",") if s)}
+    if a.estimate:
+        return estimate(ck, which, seeds, a.seed_base, a.workers)
     os.makedirs(a.out, exist_ok=True)
-    json.dump(out, open(f"{a.out}/results.json", "w"), indent=1)
-    print(fmt(out), flush=True)
+    save = lambda o: json.dump({"seed_base": a.seed_base, "results": o}, open(f"{a.out}/results.json", "w"), indent=1)
+    out = evaluate(ck, a.workers, seeds, a.seed_base, which, on_set=lambda o: (save(o), print(fmt(o), flush=True)))
+    save(out)
+    print("FINAL\n" + fmt(out), flush=True)
     return out
+
+
+def estimate(ckpts, which, seeds, seed_base, workers) -> dict:
+    """Time 1 seed (4 games, serial) per set and checkpoint; extrapolate to the full set with `workers` in parallel."""
+    ckpts = (["bc"] if "bc" not in ckpts else []) + list(ckpts)
+    est = {}
+    for key in which:
+        opp, n = LINEUPS[key]
+        n = seeds.get(key, n)
+        t = time.time()
+        for c in ckpts:
+            run_match([agent_name(c), opp, opp, opp], 1, seed_base + 10_000, 1)
+        per_game = (time.time() - t) / (4 * len(ckpts))
+        est[key] = {"s_per_game_serial": per_game, "games": 4 * n * len(ckpts),
+                    "est_minutes": per_game * 4 * n * len(ckpts) / workers / 60}
+        print(f"{key:8s} {per_game:6.2f} s/game serial -> {est[key]['games']} games ~ {est[key]['est_minutes']:.0f} min "
+              f"on {workers} workers", flush=True)
+    print(f"total ~ {sum(e['est_minutes'] for e in est.values()):.0f} min", flush=True)
+    return est
 
 
 if __name__ == "__main__":

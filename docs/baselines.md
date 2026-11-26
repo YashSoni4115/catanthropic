@@ -84,6 +84,11 @@ phi_greedy = one-ply expectimax on Φ `phi_v1_pilot:hgb_A_nobelief:88ddfea18f7a`
 
 B final is frozen as `checkpoints/ppo_B313.pt` (git-ignored), sha256 `5bc1f8c7d7c6de8c9af358830905b690a3fa26cc6a5fa71c691d00f56a967b7a`, identical to `runs/rl/B_shape/final.pt`.
 
+B2 (continuation from B313, 600 updates, shaping on, Φ `phi_v1_pilot:hgb_A_nobelief:88ddfea18f7a`) is frozen as `checkpoints/ppo_B2_600.pt` (git-ignored, copy of `runs/rl/B2_shape/final.pt`).
+- file sha256: `00386f881fadd5dcf311379d675c65f9e8ee66e9fce2645c2c8a1430bcd6dbab`
+- parameter digest (printed by train.py as "final params sha256"): `312d250afebf53c7daf0df7cfb6fa0215da5c85e0ccd24ce86c2c99e96906426`. `ckpt_0600.pt` has the same parameter digest but a different file sha, because it stores different metadata.
+- training eval (seeds 0–62, which are not fresh): 0.274 at update 0, 0.437 [0.373, 0.500] at update 600. Fresh-seed validation uses seeds 6000–6249.
+
 ## Reading the design effect
 
 - **deff is at or below 1 here, not above.** Rotation puts each slot in every turn-order position once per seed. This stratifies out the seat and board advantage, so per-seed win counts vary less than independent games would.

@@ -123,6 +123,38 @@ def test_init_from_and_final_eval(tmp_path):
     assert out["bc"]["vs_vf"]["diff_vs_bc"]["mean"] == 0
 
 
+def test_final_eval_sets_and_profile(tmp_path):
+    import json
+    from catan_rl.rl import final_eval as FE
+    from catan_rl.rl import profile as P
+    assert set(FE.LINEUPS) == {"vs_vf", "vs_ab", "vs_wr", "vs_bc", "vs_b313", "vs_pg"}
+    assert FE.LINEUPS["vs_ab"][0] == "alpha_beta" and FE.LINEUPS["vs_pg"][0] == "phi_greedy"
+    _run(str(tmp_path / "a"), updates=1, warmup=0)
+    ck = str(tmp_path / "a" / "final.pt")
+    if os.path.exists(FE.B313):
+        out = FE.evaluate([ck], workers=2, seeds={"vs_b313": 1}, seed_base=6000, which=("vs_b313",))
+        assert out[ck]["vs_b313"]["seeds"] == [6000, 6000] and out["bc"]["vs_b313"]["games"] == 4
+    prof = P.profile(["bc", ck], games=2, seed_base=7000, workers=2)
+    for r in prof.values():
+        assert r["games"] == 2 and set(r["actions_per_game"]) == set(P.ACTION_KINDS) and r["mean_final_vp"] > 0
+        assert set(r["all_vp_mean"]) == set(P.SOURCES)
+    k = P.kl(ck, games=1, seed_base=7100, workers=1)
+    assert k["decisions"] > 10 and 0 <= k["overall"]["differs"] <= 1 and k["overall"]["mean_bc_logp"] <= 0
+    w = P.windows(str(tmp_path / "a" / "log.jsonl"), 50)
+    assert w[0]["updates"] == "1-1" and set(w[0]) == {"updates", "self", "bc", "vf", "past"}
+
+
+def test_vp_sources_sum_to_actual_vp():
+    from catan_rl.rl.profile import vp_sources
+    from catanatron.models.player import RandomPlayer
+    random.seed(0)
+    env = __import__("catan_rl.env", fromlist=["x"]).CatanEnv(record_events=False).reset(3, {c: RandomPlayer(c) for c in COLORS})
+    env.play()
+    st = env.game.state
+    for c in COLORS:
+        assert sum(vp_sources(st, c).values()) == st.player_state[f"P{st.color_to_index[c]}_ACTUAL_VICTORY_POINTS"]
+
+
 def test_sampling_key_distinct_across_games():
     from catan_rl.policy.agent import sample_key
     from catan_rl.tests.test_policy import _play
