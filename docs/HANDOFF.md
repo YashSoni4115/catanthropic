@@ -23,6 +23,12 @@ Gate-based: every experiment has a pre-written pass/fail threshold and a stated 
 V0 DONE: REAL IMPROVEMENT, PASS. B2 scored 0.366 vs alpha_beta, 0.406 vs bc_policy, 0.384 vs B313 and 0.400 vs value_function. All numbers are on fresh seeds and are in `docs/baselines.md`.
 Next: Spec V1 is DONE, CLEAR (0% turn-limit, VP sources diverse; see baselines.md). Next is Spec B3.
 
+## Spec R3: DONE, NULL (see baselines.md)
+Paired belief minus control vs value_function, seeds 9000+: +0.011 [−0.026, +0.047].
+- The features are used but don't help measurably. Their weight-column L2 norms are 0.2-1.1 (rob_value 1.13, rob_p_SHEEP 0.89), against a median of 1.6 for the other inputs.
+- The control (= B3 + 600 updates) scores 0.517 vs value_function and 0.466 vs alpha_beta.
+- Pending (Yash): freeze R3_control as `checkpoints/ppo_B4_600.pt` (sha256 1b460616...). Next is roadmap 1, the Phi retrain.
+
 ## Spec R3: belief features in PPO training (roadmap 3)
 Goal: test whether the existing belief action features (robber steal, monopoly, year of plenty) improve the PPO policy beyond B3.
 Why now: B3 passed. The gains from continuation are shrinking. The features are already extracted and leak-tested (`test_belief_features_leak_free`), but `train.py` exits on `--belief-features`.

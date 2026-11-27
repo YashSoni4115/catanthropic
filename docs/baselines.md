@@ -137,6 +137,8 @@ KL to BC: B2's argmax differs from BC's on 23.6% of its 5,335 decisions.
 
 - **B3 PPO training:** `--seed 2`, giving game seeds 3,000,000-3,999,999. Formula: train_seed_base + seed x 1e6 + n_games. A and B used seed 0, and B2 used seed 1 (2,000,000+).
 - **B3 fresh validation:** seeds 8000-8249. Never used before.
+- **R3 training (belief features and control):** both runs use `--seed 4`, giving game seeds 5,000,000-5,999,999. The two runs share identical game and league seeds, so the only difference between them is the features.
+- **R3 fresh validation:** seeds 9000-9249. Never used before.
 
 ### B3 (continuation from B2, 600 updates, seed 2) fresh validation, seeds 8000+
 
@@ -163,6 +165,28 @@ bc vs 3 value_function is inferred as 0.229 = B2 0.406 minus B2's paired diff +0
 Paired B3 minus B2 vs 3 value_function (`eval.run --compare`, seeds 8000-8249, 1,000 games each, seed-clustered): **+0.057 [+0.020, +0.093]**. Re-running eval.run reproduced the final_eval numbers exactly (0.463 and 0.406), so the evals are deterministic. Outputs: `runs/rl/B3_val`, `runs/rl/B3_val_ab`, `runs/rl/B3_paired`.
 
 **B3 gate: PASS.** The paired diff vs B2 has CI lower bound > 0; the vs_bc lower bound 0.436 and vs_ab lower bound 0.366 are both > 0.25; vs_wr 0.994 is >= 0.95.
+
+### R3: belief features vs control (both from B3, seed 4, 600 updates), fresh seeds 9000+
+
+Code at `220da43`. Both runs use the same settings as B3; the only difference is `--belief-features`.
+- R3_belief `final.pt` sha256 `aff5336292dfc5be60c3a3dc46493e1d8e66981610ce390260de6aa5c93d69f9`.
+- R3_control `final.pt` sha256 `1b460616015e5f7a4d20539c0bc3f59912bd6e792bb3a4bb8fe777e01704d390`.
+
+| Ckpt | Opponents | Win | 95% CI |
+|---|---|---|---|
+| R3_belief | 3 value_function (9000-9249) | 0.528 | [0.493, 0.563] |
+| R3_control | 3 value_function (9000-9249) | 0.517 | [0.483, 0.551] |
+| R3_belief | 3 alpha_beta (9000-9124) | 0.472 | [0.420, 0.524] |
+| R3_control | 3 alpha_beta (9000-9124) | 0.466 | [0.412, 0.518] |
+| R3_belief | 3 weighted_random | 0.988 | [0.976, 0.998] |
+| R3_control | 3 weighted_random | 0.992 | [0.982, 1.000] |
+| bc | 3 alpha_beta / 3 weighted_random | 0.168 / 0.974 | — |
+
+Paired R3_belief minus R3_control vs 3 value_function: **+0.011 [−0.026, +0.047]** (250 seeds).
+
+**R3 gate: NULL.** The CI contains 0, so belief features add no detectable gain at this scale. vs alpha_beta is not worse (unpaired 0.472 vs 0.466), and vs weighted_random is >= 0.95 for both.
+- Training eval on seeds 0-62 (not fresh, noisy): belief 0.567 at update 600, control 0.484. That gap does not hold on fresh seeds. It is the kind of selection-bias overestimate the fresh-seed rule exists to catch.
+- Side result: the control run, which is simply B3 trained 600 more updates (= "B4"), scores 0.517 vs value_function and 0.466 vs alpha_beta. Continued training still helps. But this is not a paired B4-vs-B3 comparison, because B3 was not evaluated on seeds 9000+.
 
 ## Reading the design effect
 
